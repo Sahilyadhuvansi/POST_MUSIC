@@ -20,10 +20,10 @@ async function connectDB() {
     const conn = await mongoose.connect(MONGO_URI, {
       retryWrites: true,
       w: "majority",
-      // Use lower timeouts for serverless environments to fail fast
-      serverSelectionTimeoutMS: 10000,
-      connectTimeoutMS: 10000,
-      socketTimeoutMS: 20000,
+      // Force IPv4 as Vercel + Atlas can have IPv6 resolution issues
+      family: 4,
+      serverSelectionTimeoutMS: 15000,
+      connectTimeoutMS: 15000,
     });
 
     console.log(
