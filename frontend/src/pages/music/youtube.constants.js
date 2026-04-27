@@ -1,4 +1,5 @@
 export const MIN_TRACK_DURATION_SECONDS = 90;
+export const MAX_TRACK_DURATION_SECONDS = 360;
 
 export const SHORT_FORM_KEYWORDS = [
   "#shorts",

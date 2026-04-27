@@ -28,4 +28,8 @@ module.exports = {
   // Security
   JWT_EXPIRE: "30d",
   COOKIE_EXPIRE: 30, // days
+
+  // YouTube Content Constraints
+  MIN_TRACK_DURATION_SECONDS: 90,
+  MAX_TRACK_DURATION_SECONDS: 360,
 };

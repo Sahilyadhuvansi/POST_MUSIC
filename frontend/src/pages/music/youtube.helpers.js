@@ -1,6 +1,7 @@
 import {
   BAD_KEYWORDS,
   HARD_EXCLUDE_KEYWORDS,
+  MAX_TRACK_DURATION_SECONDS,
   MIN_TRACK_DURATION_SECONDS,
   MUSIC_INTENT_KEYWORDS,
   PREFERRED_CHANNEL_HINTS,
@@ -40,7 +41,11 @@ export const isLikelyShortForm = (title = "", durationSeconds = 0) => {
     normalized.includes(keyword),
   );
 
-  return durationSeconds < MIN_TRACK_DURATION_SECONDS || hasShortKeyword;
+  return (
+    durationSeconds < MIN_TRACK_DURATION_SECONDS ||
+    durationSeconds > MAX_TRACK_DURATION_SECONDS ||
+    hasShortKeyword
+  );
 };
 
 export const isHardExcluded = (title = "") => {
@@ -150,10 +155,14 @@ export const getMusicRelevanceScore = ({
 }) => {
   let score = 0;
 
-  // duration preference: 3-8 min ideal
-  if (durationSeconds >= 180 && durationSeconds <= 480) score += 5;
-  else if (durationSeconds >= 150 && durationSeconds <= 540) score += 3;
-  else if (durationSeconds >= MIN_TRACK_DURATION_SECONDS) score += 1;
+  // duration preference: 3-6 min ideal (aligned with 180-360 range)
+  if (durationSeconds >= 180 && durationSeconds <= 360) score += 5;
+  else if (durationSeconds >= 150 && durationSeconds <= 390) score += 3;
+  else if (
+    durationSeconds >= MIN_TRACK_DURATION_SECONDS &&
+    durationSeconds <= MAX_TRACK_DURATION_SECONDS
+  )
+    score += 1;
 
   if (categoryId === "10") score += 4;
   if (hasMusicIntent(title)) score += 2;
