@@ -16,13 +16,18 @@ class QuotaManager {
    */
   getUserQuota(userId) {
     if (!userId) return null;
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split("T")[0];
     const key = `${userId}_${today}`;
-    
+
     if (!this.userQuotas.has(key)) {
-      this.userQuotas.set(key, { requestsUsed: 0, costUsed: 0, requestsLimit: 1000, costLimit: 10.0 });
+      this.userQuotas.set(key, {
+        requestsUsed: 0,
+        costUsed: 0,
+        requestsLimit: 1000,
+        costLimit: 10.0,
+      });
     }
-    
+
     return this.userQuotas.get(key);
   }
 
@@ -32,7 +37,10 @@ class QuotaManager {
   hasQuotaAvailable(userId) {
     const quota = this.getUserQuota(userId);
     if (!quota) return true;
-    return quota.requestsUsed < quota.requestsLimit && quota.costUsed < quota.costLimit;
+    return (
+      quota.requestsUsed < quota.requestsLimit &&
+      quota.costUsed < quota.costLimit
+    );
   }
 
   /**
@@ -50,7 +58,7 @@ class QuotaManager {
    */
   resetUserQuota(userId) {
     if (!userId) return;
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split("T")[0];
     this.userQuotas.delete(`${userId}_${today}`);
   }
 
@@ -58,7 +66,7 @@ class QuotaManager {
    * Clean up old records
    */
   cleanup() {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toISOString().split("T")[0];
     for (const [key] of this.userQuotas) {
       if (!key.endsWith(today)) this.userQuotas.delete(key);
     }
@@ -75,19 +83,19 @@ const quotaCheckMiddleware = (req, res, next) => {
   if (!quotaManager.hasQuotaAvailable(req.user.id)) {
     return res.status(429).json({
       success: false,
-      error: 'Daily quota exceeded'
+      error: "Daily quota exceeded",
     });
   }
   next();
 };
 
 /**
- * Middleware for quota deduction (post-request)
+ * Middleware for quota deduction (after successful request)
  */
 const quotaDeductionMiddleware = (req, res, next) => {
   if (!req.user) return next();
   const originalSend = res.send;
-  res.send = function(data) {
+  res.send = function (data) {
     if (res.statusCode === 200) {
       quotaManager.deductQuota(req.user.id);
     }
@@ -99,5 +107,5 @@ const quotaDeductionMiddleware = (req, res, next) => {
 module.exports = {
   quotaManager,
   quotaCheckMiddleware,
-  quotaDeductionMiddleware
+  quotaDeductionMiddleware,
 };

@@ -22,12 +22,15 @@ const Login = () => {
       username: identifier,
       password,
     });
-    
+
     if (result.success) {
       addToast("Welcome back to the universe.", "success");
       navigate("/");
     } else {
-      addToast(result.message || "Authentication failed. Check your credentials.", "error");
+      addToast(
+        result.message || "Authentication failed. Check your credentials.",
+        "error",
+      );
     }
     setLoading(false);
   };
@@ -50,7 +53,10 @@ const Login = () => {
             </div>
           </div>
           <h2 className="text-3xl font-black text-white tracking-tight italic">
-            Access <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-pink-400">MusicFeed</span>
+            Access{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-pink-400">
+              MusicDiscover
+            </span>
           </h2>
           <p className="mt-3 text-sm text-neutral-500 font-medium uppercase tracking-widest">
             Enter your credentials
@@ -78,7 +84,7 @@ const Login = () => {
           {/* Key */}
           <div className="space-y-2">
             <label className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500 ml-1 flex items-center gap-2">
-              <Lock className="w-3 h-3" /> Secret Key
+              <Lock className="w-3 h-3" /> Password
             </label>
             <div className="relative">
               <input
@@ -95,7 +101,11 @@ const Login = () => {
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-neutral-600 hover:text-white transition-colors"
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {showPassword ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
               </button>
             </div>
           </div>
@@ -108,22 +118,24 @@ const Login = () => {
           >
             <div className="relative z-10 flex items-center justify-center gap-3">
               {loading ? "Authenticating..." : "Enter Universe"}
-              {!loading && <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />}
+              {!loading && (
+                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+              )}
             </div>
           </button>
         </form>
 
         {/* Navigation Footer */}
         <div className="mt-10 pt-8 border-t border-white/5 text-center">
-            <p className="text-xs text-neutral-500 font-medium">
-              NEW TO THE STREAM?{" "}
-              <Link
-                to="/register"
-                className="ml-2 font-black text-white hover:text-indigo-400 transition-colors uppercase tracking-widest"
-              >
-                Create Hub
-              </Link>
-            </p>
+          <p className="text-xs text-neutral-500 font-medium">
+            NEW HERE?{" "}
+            <Link
+              to="/register"
+              className="ml-2 font-black text-white hover:text-indigo-400 transition-colors uppercase tracking-widest"
+            >
+              Create Account
+            </Link>
+          </p>
         </div>
       </div>
     </div>
@@ -131,4 +143,3 @@ const Login = () => {
 };
 
 export default Login;
-

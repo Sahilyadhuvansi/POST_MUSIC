@@ -189,7 +189,7 @@ const analyticsMiddleware = (req, res, next) => {
       if (parsed?.success === false) {
         analytics.recordError(endpoint, "API_ERROR", parsed?.error);
       }
-    } catch (_e) {
+    } catch {
       // Ignore parse errors from non-JSON responses
     }
 

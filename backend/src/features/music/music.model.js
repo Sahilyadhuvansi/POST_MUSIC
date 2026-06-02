@@ -28,7 +28,7 @@ const musicSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-// Index for feed sorting
+// Index for list sorting
 musicSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model("Music", musicSchema); // Corrected case

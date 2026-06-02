@@ -6,8 +6,6 @@
  */
 
 module.exports = {
-  // Feed Configuration
-  POSTS_PER_PAGE: 12,
   MUSIC_PER_PAGE: 15,
 
   // Feature Flags
@@ -30,5 +28,5 @@ module.exports = {
     FORBIDDEN: 403,
     NOT_FOUND: 404,
     INTERNAL_SERVER_ERROR: 500,
-  }
+  },
 };

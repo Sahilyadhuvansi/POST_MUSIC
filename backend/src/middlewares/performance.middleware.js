@@ -1,7 +1,7 @@
 "use strict";
 
 /**
- * MusicFeed Performance & Observability Middleware.
+ * Music Discover performance & observability middleware.
  * Tracks response times, throughput, and error rates.
  */
 const logger = require("../utils/logger");
@@ -26,11 +26,20 @@ const performanceMiddleware = (req, res, next) => {
     };
 
     if (status >= 400) {
-      logger.error(`[Performance] ${req.method} ${req.originalUrl} - ERROR ${status} in ${ms}ms`, logData);
+      logger.error(
+        `[Performance] ${req.method} ${req.originalUrl} - ERROR ${status} in ${ms}ms`,
+        logData,
+      );
     } else if (ms > 500) {
-      logger.warn(`[Performance] ${req.method} ${req.originalUrl} - SLOW ${status} in ${ms}ms`, logData);
+      logger.warn(
+        `[Performance] ${req.method} ${req.originalUrl} - SLOW ${status} in ${ms}ms`,
+        logData,
+      );
     } else {
-      logger.info(`[Performance] ${req.method} ${req.originalUrl} - ${status} in ${ms}ms`, logData);
+      logger.info(
+        `[Performance] ${req.method} ${req.originalUrl} - ${status} in ${ms}ms`,
+        logData,
+      );
     }
   });
 
@@ -38,4 +47,3 @@ const performanceMiddleware = (req, res, next) => {
 };
 
 module.exports = performanceMiddleware;
-

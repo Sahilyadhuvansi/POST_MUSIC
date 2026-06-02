@@ -10,8 +10,14 @@ const imagekit = new ImageKit({
 
 // Upload from multer buffer
 // originalName: original filename (for extension detection), folder: ImageKit subfolder
-async function uploadFromBuffer(buffer, originalName = "file", folder = "postfeed") {
-  const ext = originalName.includes(".") ? originalName.split(".").pop() : "bin";
+async function uploadFromBuffer(
+  buffer,
+  originalName = "file",
+  folder = "music-discover",
+) {
+  const ext = originalName.includes(".")
+    ? originalName.split(".").pop()
+    : "bin";
   const uniqueName = `${folder.split("/").pop()}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}.${ext}`;
   const result = await imagekit.files.upload({
     file: buffer.toString("base64"),

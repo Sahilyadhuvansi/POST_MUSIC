@@ -2,6 +2,7 @@
 
 const youtubeService = require("../../services/youtube.service");
 const Music = require("../music/music.model");
+const Playlist = require("../playlists/playlists.model");
 const { ensureLikedSongsPlaylist } = require("../music/music.controller");
 
 const ACTIONS = {
@@ -27,7 +28,6 @@ const TOOL_METRICS = {
 
 const normalizeText = (value = "") => value.toString().trim();
 
-
 const createToolResponse = ({
   success,
   action,
@@ -43,7 +43,6 @@ const createToolResponse = ({
 });
 
 const extractYoutubeUrl = (text = "") => {
-
   const match = text.match(
     /https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be)\/[^\s]+/i,
   );
@@ -114,7 +113,9 @@ const hardFallbackAction = (message = "") => {
   }
 
   if (/^(play|tune in to|listen to)\s+/i.test(lowered)) {
-    const query = lowered.replace(/^(play|tune in to|listen to)\s+/i, "").trim();
+    const query = lowered
+      .replace(/^(play|tune in to|listen to)\s+/i, "")
+      .trim();
     return {
       action: ACTIONS.PLAY_SONG,
       args: { query },
@@ -128,7 +129,6 @@ const hardFallbackAction = (message = "") => {
 const preprocessUserIntent = (message = "") => {
   return hardFallbackAction(message);
 };
-
 
 const searchMusicInternal = async (query, limit = 30) => {
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -195,29 +195,33 @@ const handlers = {
 
     // Phase 1: Local Library Search
     const localMusics = await searchMusicInternal(query, 10);
-    
+
     // Phase 2: YouTube Fallback/Expansion
     let youtubeMusics = [];
     try {
-      youtubeMusics = await youtubeService.findTracks(query, { maxResults: 15 });
-    } catch (_) {
+      youtubeMusics = await youtubeService.findTracks(query, {
+        maxResults: 15,
+      });
+    } catch {
       // YouTube quota or network error
     }
 
     // Merge and format results
     // We want to ensure they look similar to the UI expectation
     const combined = [
-      ...localMusics.map(m => ({ ...m, source: "library" })),
+      ...localMusics.map((m) => ({ ...m, source: "library" })),
       ...youtubeMusics
-        .filter(yt => !localMusics.some(l => l.youtubeUrl === yt.youtubeUrl))
-        .map(yt => ({ 
-          _id: `yt_${yt.videoId}`, 
+        .filter(
+          (yt) => !localMusics.some((l) => l.youtubeUrl === yt.youtubeUrl),
+        )
+        .map((yt) => ({
+          _id: `yt_${yt.videoId}`,
           songId: `yt_${yt.videoId}`,
-          title: yt.title, 
-          youtubeUrl: yt.youtubeUrl, 
-          thumbnailUrl: yt.thumbnailUrl || yt.thumbnail, 
-          source: "youtube" 
-        }))
+          title: yt.title,
+          youtubeUrl: yt.youtubeUrl,
+          thumbnailUrl: yt.thumbnailUrl || yt.thumbnail,
+          source: "youtube",
+        })),
     ];
 
     return createToolResponse({
@@ -307,7 +311,8 @@ const handlers = {
       return createToolResponse({
         success: false,
         action: ACTIONS.LIKE_SONG,
-        message: "Please provide a song query, song id, or YouTube song link to like.",
+        message:
+          "Please provide a song query, song id, or YouTube song link to like.",
         data: null,
       });
     }
@@ -347,7 +352,7 @@ const handlers = {
         });
         await likedPlaylist.save();
       }
-    } catch (_) {
+    } catch {
       // Sync failed is non-critical for the tools report
     }
 
@@ -368,7 +373,8 @@ const handlers = {
       return createToolResponse({
         success: false,
         action: ACTIONS.DELETE_SONG,
-        message: "Tell me the song, or provide song id / title / YouTube URL to remove.",
+        message:
+          "Tell me the song, or provide song id / title / YouTube URL to remove.",
         data: null,
       });
     }
@@ -412,7 +418,7 @@ const handlers = {
           );
           await likedPlaylist.save();
         }
-      } catch (_) {
+      } catch {
         // Sync fail is non-critical
       }
     }
@@ -446,7 +452,10 @@ const handlers = {
         const query = `${t.title} ${t.artist || ""}`.trim();
         const yt = await youtubeService.findSingleTrack(query);
         if (!yt) {
-          results.failed.push({ title: t.title, reason: "YouTube link not found" });
+          results.failed.push({
+            title: t.title,
+            reason: "YouTube link not found",
+          });
           continue;
         }
 
@@ -484,7 +493,8 @@ const handlers = {
     return createToolResponse({
       success: true,
       action: ACTIONS.IMPORT_PLAYLIST,
-      message: "I've initialized the playlist resolver. Please confirm if you'd like me to start the batch import now.",
+      message:
+        "I've initialized the playlist resolver. Please confirm if you'd like me to start the batch import now.",
       data: { source: args?.source || "spotify", url },
     });
   },
@@ -494,7 +504,8 @@ const TOOL_REGISTRY = {
   [ACTIONS.SEARCH_MUSIC]: {
     handler: handlers[ACTIONS.SEARCH_MUSIC],
     requiresAuth: false,
-    description: "Search music by title or artists (searches library + YouTube)",
+    description:
+      "Search music by title or artists (searches library + YouTube)",
   },
   [ACTIONS.PLAY_SONG]: {
     handler: handlers[ACTIONS.PLAY_SONG],
@@ -536,5 +547,3 @@ module.exports = {
   preprocessUserIntent,
   hardFallbackAction,
 };
-
-

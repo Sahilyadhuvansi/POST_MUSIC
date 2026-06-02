@@ -1,7 +1,7 @@
 "use strict";
 
 // ============================================================================
-// AI SERVICE - Post Music AI (Production Refactor)
+// AI SERVICE - Music Discover API
 // ============================================================================
 // Status: Production-hardened with zero-log observability
 // ============================================================================
@@ -13,9 +13,9 @@ const { getRedisClient } = require("../utils/redis");
 
 const { analytics } = require("./ai.performance-analytics");
 
-const DAILY_COST_LIMIT = 5.0; 
-const MAX_CACHE_SIZE = 100;    
-const MAX_PAYLOAD_SIZE = 50000; 
+const DAILY_COST_LIMIT = 5.0;
+const MAX_CACHE_SIZE = 100;
+const MAX_PAYLOAD_SIZE = 50000;
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 const SUSPICIOUS_PATTERNS = [
@@ -23,14 +23,14 @@ const SUSPICIOUS_PATTERNS = [
   /system\s+prompt/i,
   /act\s+as\s+/i,
   /dan\s+mode/i,
-  /jailbreak/i
+  /jailbreak/i,
 ];
 
 const ResponseSchema = {
   JSON_ARRAY: "json_array",
   JSON_OBJECT: "json_object",
   PLAIN_TEXT: "plain_text",
-  STRUCTURED_JSON: "structured"
+  STRUCTURED_JSON: "structured",
 };
 
 class AIService {
@@ -55,87 +55,94 @@ class AIService {
   }
 
   async chat(messages, options = {}) {
-      const {
-        temperature = 0.7,
-        maxTokens = 4096,
-        systemPrompt = null,
-        responseSchema = ResponseSchema.PLAIN_TEXT,
-        strict = false,
-      } = options;
+    const {
+      temperature = 0.7,
+      maxTokens = 4096,
+      systemPrompt = null,
+      responseSchema = ResponseSchema.PLAIN_TEXT,
+      strict = false,
+    } = options;
 
-      const cacheKey = this._generateCacheKey({ messages, systemPrompt, temperature, responseSchema });
+    const cacheKey = this._generateCacheKey({
+      messages,
+      systemPrompt,
+      temperature,
+      responseSchema,
+    });
 
-      try {
-        // --- CACHE LAYER (Redis -> Map -> Fetch) ---
-        let cachedEntry = null;
+    try {
+      // --- CACHE LAYER (Redis -> Map -> Fetch) ---
+      let cachedEntry = null;
 
-        if (this.redis) {
-          const redisData = await this.redis.get(`ai_cache:${cacheKey}`);
-          if (redisData) {
+      if (this.redis) {
+        const redisData = await this.redis.get(`ai_cache:${cacheKey}`);
+        if (redisData) {
+          this.recordHit();
+          return JSON.parse(redisData);
+        }
+      } else {
+        cachedEntry = this.cache.get(cacheKey);
+        if (cachedEntry) {
+          if (Date.now() - cachedEntry.timestamp < CACHE_TTL) {
             this.recordHit();
-            return JSON.parse(redisData);
+            return cachedEntry.value;
           }
-        } else {
-          cachedEntry = this.cache.get(cacheKey);
-          if (cachedEntry) {
-            if (Date.now() - cachedEntry.timestamp < CACHE_TTL) {
-              this.recordHit();
-              return cachedEntry.value;
-            }
-            this.cache.delete(cacheKey);
-          }
+          this.cache.delete(cacheKey);
         }
-        this.recordMiss();
+      }
+      this.recordMiss();
 
-        const validation = this._validateInput(messages);
-        if (!validation.valid) {
-          return this._createErrorResponse("Invalid input format", validation.error);
-        }
-
-        const dailyReport = analytics.getComprehensiveReport();
-        const currentDailyCost = parseFloat(dailyReport.summary.totalCost);
-        if (currentDailyCost >= DAILY_COST_LIMIT) {
-          return this._createErrorResponse(
-            "Service quota exceeded",
-            "Daily AI usage limit reached. Circuit breaker active."
-          );
-        }
-
-        if (!this.groq) {
-          return this._createErrorResponse(
-            "Service unavailable",
-            "Groq API not configured"
-          );
-        }
-
-        const rawResponse = await this._groqChat(
-          messages,
-          systemPrompt,
-          temperature,
-          maxTokens
+      const validation = this._validateInput(messages);
+      if (!validation.valid) {
+        return this._createErrorResponse(
+          "Invalid input format",
+          validation.error,
         );
+      }
 
-        if (!rawResponse.success) {
-          return rawResponse;
-        }
-
-        const parsed = this._parseResponse(
-          rawResponse.content,
-          responseSchema,
-          strict
+      const dailyReport = analytics.getComprehensiveReport();
+      const currentDailyCost = parseFloat(dailyReport.summary.totalCost);
+      if (currentDailyCost >= DAILY_COST_LIMIT) {
+        return this._createErrorResponse(
+          "Service quota exceeded",
+          "Daily AI usage limit reached. Circuit breaker active.",
         );
+      }
 
-        const finalResponse = {
-          content: parsed.content,
-          model: "groq",
-          usage: rawResponse.usage,
-          status: "success",
-          parseSuccess: parsed.success
-        };
+      if (!this.groq) {
+        return this._createErrorResponse(
+          "Service unavailable",
+          "Groq API not configured",
+        );
+      }
 
-        this._setCache(cacheKey, finalResponse);
-        return finalResponse;
+      const rawResponse = await this._groqChat(
+        messages,
+        systemPrompt,
+        temperature,
+        maxTokens,
+      );
 
+      if (!rawResponse.success) {
+        return rawResponse;
+      }
+
+      const parsed = this._parseResponse(
+        rawResponse.content,
+        responseSchema,
+        strict,
+      );
+
+      const finalResponse = {
+        content: parsed.content,
+        model: "groq",
+        usage: rawResponse.usage,
+        status: "success",
+        parseSuccess: parsed.success,
+      };
+
+      this._setCache(cacheKey, finalResponse);
+      return finalResponse;
     } catch (error) {
       this._logFailure("chat", error);
       return this._createErrorResponse("AI service error", error.message);
@@ -143,20 +150,36 @@ class AIService {
   }
 
   _validateInput(messages) {
-    if (!Array.isArray(messages)) return { valid: false, error: "Messages must be an array" };
-    if (messages.length === 0) return { valid: false, error: "Messages array cannot be empty" };
+    if (!Array.isArray(messages))
+      return { valid: false, error: "Messages must be an array" };
+    if (messages.length === 0)
+      return { valid: false, error: "Messages array cannot be empty" };
 
     for (let msg of messages) {
-      if (!msg.role || !msg.content) return { valid: false, error: "Each message must have role and content" };
-      if (!["user", "assistant", "system"].includes(msg.role)) return { valid: false, error: `Invalid role: ${msg.role}` };
-      if (typeof msg.content !== "string") return { valid: false, error: "Message content must be a string" };
+      if (!msg.role || !msg.content)
+        return {
+          valid: false,
+          error: "Each message must have role and content",
+        };
+      if (!["user", "assistant", "system"].includes(msg.role))
+        return { valid: false, error: `Invalid role: ${msg.role}` };
+      if (typeof msg.content !== "string")
+        return { valid: false, error: "Message content must be a string" };
 
       let riskScore = 0;
       for (const pattern of SUSPICIOUS_PATTERNS) {
         if (pattern.test(msg.content)) riskScore += 1;
       }
-      if (riskScore >= 2) return { valid: false, error: "High-confidence prompt injection detected" };
-      if (msg.content.length > 1000) return { valid: false, error: "Message too long (max 1000 chars for AI safety)" };
+      if (riskScore >= 2)
+        return {
+          valid: false,
+          error: "High-confidence prompt injection detected",
+        };
+      if (msg.content.length > 1000)
+        return {
+          valid: false,
+          error: "Message too long (max 1000 chars for AI safety)",
+        };
     }
 
     return { valid: true };
@@ -167,25 +190,33 @@ class AIService {
     try {
       if (schema === ResponseSchema.JSON_OBJECT) {
         const json = this._extractJSON(text, "object");
-        if (json === null && strict) throw new Error("Could not extract JSON object from response");
+        if (json === null && strict)
+          throw new Error("Could not extract JSON object from response");
         return { content: json || {}, success: json !== null, raw };
       }
 
       if (schema === ResponseSchema.JSON_ARRAY) {
         const json = this._extractJSON(text, "array");
-        if (json === null && strict) throw new Error("Could not extract JSON array from response");
+        if (json === null && strict)
+          throw new Error("Could not extract JSON array from response");
         return { content: json || [], success: json !== null, raw };
       }
 
       if (schema === ResponseSchema.STRUCTURED_JSON) {
         const json = this._extractJSON(text, "object");
-        if (json === null && strict) throw new Error("Could not extract structured JSON from response");
+        if (json === null && strict)
+          throw new Error("Could not extract structured JSON from response");
         return { content: json || {}, success: json !== null, raw };
       }
 
       return { content: text.trim(), success: true, raw };
     } catch (error) {
-      return { content: strict ? null : text.trim(), success: false, error: error.message, raw };
+      return {
+        content: strict ? null : text.trim(),
+        success: false,
+        error: error.message,
+        raw,
+      };
     }
   }
 
@@ -211,14 +242,15 @@ class AIService {
         const objectMatch = cleaned.match(/\{[\s\S]*\}/);
         if (objectMatch) {
           const parsed = JSON.parse(objectMatch[0]);
-          if (typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+          if (typeof parsed === "object" && !Array.isArray(parsed))
+            return parsed;
         }
       }
 
       const parsed = JSON.parse(cleaned);
       if (type === "array" && Array.isArray(parsed)) return parsed;
       if (type === "object" && typeof parsed === "object") return parsed;
-    } catch (_e) {
+    } catch {
       // Quietly fail extraction
     }
     return null;
@@ -256,17 +288,18 @@ class AIService {
       model: "error-fallback",
       usage: null,
       status: "error",
-      error: { title, detail }
+      error: { title, detail },
     };
   }
 
   _trackUsage(_provider, usage) {
     this.requestCount++;
     if (usage && usage.total_tokens) {
-      const estimatedCost = (usage.prompt_tokens * 0.00000005) + (usage.completion_tokens * 0.00000015);
+      const estimatedCost =
+        usage.prompt_tokens * 0.00000005 + usage.completion_tokens * 0.00000015;
       this.totalCost += estimatedCost;
     } else {
-      this.totalCost += 0.0001; 
+      this.totalCost += 0.0001;
     }
   }
 
@@ -275,15 +308,21 @@ class AIService {
       component,
       error: error.message,
       timestamp: new Date(),
-      stack: error.stack
+      stack: error.stack,
     });
 
     if (this.failureLog.length > 100) this.failureLog.shift();
   }
 
-  clearFailureLog() { this.failureLog = []; }
-  recordHit() { this.hits++; }
-  recordMiss() { this.misses++; }
+  clearFailureLog() {
+    this.failureLog = [];
+  }
+  recordHit() {
+    this.hits++;
+  }
+  recordMiss() {
+    this.misses++;
+  }
 
   _generateCacheKey(params) {
     return crypto
@@ -298,12 +337,12 @@ class AIService {
     if (this.redis) {
       try {
         await this.redis.set(`ai_cache:${key}`, JSON.stringify(value), {
-          EX: Math.floor(CACHE_TTL / 1000)
+          EX: Math.floor(CACHE_TTL / 1000),
         });
-      } catch (err) {
+      } catch {
         // Silently fail Redis set and use Map fallback
       }
-    } 
+    }
 
     if (this.cache.size >= MAX_CACHE_SIZE) {
       const firstKey = this.cache.keys().next().value;
@@ -316,19 +355,21 @@ class AIService {
     return {
       requestCount: this.requestCount,
       totalCost: this.totalCost.toFixed(4),
-      avgCostPerRequest: this.requestCount > 0 
-        ? (this.totalCost / this.requestCount).toFixed(6)
-        : 0,
+      avgCostPerRequest:
+        this.requestCount > 0
+          ? (this.totalCost / this.requestCount).toFixed(6)
+          : 0,
       cache: {
         size: this.cache.size,
         hits: this.hits,
         misses: this.misses,
-        hitRate: (this.hits + this.misses) > 0 
-          ? ((this.hits / (this.hits + this.misses)) * 100).toFixed(2) + "%"
-          : "0%"
+        hitRate:
+          this.hits + this.misses > 0
+            ? ((this.hits / (this.hits + this.misses)) * 100).toFixed(2) + "%"
+            : "0%",
       },
       recentFailures: this.failureLog.slice(-5),
-      status: this.groq ? "operational" : "unconfigured"
+      status: this.groq ? "operational" : "unconfigured",
     };
   }
 }

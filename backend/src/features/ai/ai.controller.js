@@ -1,15 +1,13 @@
 "use strict";
 
 /**
- * AI CONTROLLER - Post Music AI (Production Refactor)
+ * AI CONTROLLER - Music Discovery AI
  * Senior Feature: Consistent Error Delegation & Standardized Telemetry
  */
 
 const musicRecommendation = require("../../services/music-recommendation.service");
-const contentModeration = require("../../services/content-moderation.service");
 const aiService = require("../../services/ai.service");
 const aiConfig = require("../../config/ai.config");
-const Post = require("../posts/posts.model");
 const Music = require("../music/music.model");
 const {
   getAiContext,
@@ -24,7 +22,6 @@ const {
   TOOL_REGISTRY,
   TOOL_METRICS,
   preprocessUserIntent,
-  searchMusicInternal,
 } = require("./ai.tool-handlers");
 
 // Cache context (limit lookups)
@@ -33,12 +30,10 @@ let lastFetchTime = 0;
 const CACHE_DURATION = 30 * 1000;
 
 const SYSTEM_PROMPTS = {
-  captionGeneration: `Artist branding expert. Generate Instagram caption. 150-200 chars. 1-2 emojis. No hashtags. Return text only.`,
-  hashtagSuggestion: `Music marketing expert. Return ONLY a JSON array of 5-8 relevant lowercase hashtags.`,
   moodPlaylist: `AI DJ. Describe a {mood} mood in 1-2 sentences. Text only.`,
   trendingAnalysis: `Trends analyst. Summarize current tracks in 1 sentence. Text only.`,
   recommendationReasons: `Music taste expert. Provide brief (5-10 words) specific reasons for matches. Return JSON array.`,
-  chatStructured: `PostFeed Data Controller. APP CONTEXT: {appContext}. Query: {userQuery}. Return ONLY valid JSON structured for posts/songs/empty. No explanation.`,
+  chatStructured: `Music Discovery Data Controller. APP CONTEXT: {appContext}. Query: {userQuery}. Return ONLY valid JSON structured for songs/empty. No explanation.`,
   chatGeneral: `Friendly AI Assistant guide for the music platform. APP CONTEXT: {appContext}. Be encouraging and concise.`,
   actionSelector: `You are an AI action router for a music app.\nAllowed actions only: search_music, play_song, fetch_favorites, like_song, delete_song, import_playlist, batch_like, respond_normally.\nReturn ONLY valid JSON object with shape: {"action":"...","args":{},"reply":"short summary"}.\nRules:\n- If user asks to play a specific song, artist, or query -> play_song\n- If user asks to fetch/view favorites -> fetch_favorites\n- If user asks to save/like/favorite a song and provides youtube url or title -> like_song\n- If user asks to remove/unfavorite/delete song -> delete_song\n- If user asks to search/find music -> search_music\n- If spotify playlist link provided -> import_playlist\n- If user provides a list of multiple tracks or asks to like/save several songs at once -> batch_like\n- If intent is unclear -> respond_normally\n- play_song takes args {"query": "..."} or {"youtubeUrl": "..."}\n- like_song MUST apply to ONE song only\n- batch_like MUST handle an array of tracks in args {"tracks": [{"title": "...", "artist": "..."}]}\n- NEVER process multiple songs in one like/delete action; use batch_like instead\n- ALWAYS choose the most relevant/top result for single actions\n- If user says first/second/third/that one/this song and lastSearchResults exist, map reference to ONE item and call like_song, play_song OR delete_song with songId`,
 };
@@ -88,7 +83,11 @@ const runTool = async (action, args, req) => {
   }
 };
 
-const getActionDecision = async (userMessage, appContext, contextualMemory = {}) => {
+const getActionDecision = async (
+  userMessage,
+  appContext,
+  contextualMemory = {},
+) => {
   const recentResults = Array.isArray(contextualMemory.lastSearchResults)
     ? contextualMemory.lastSearchResults.slice(0, 10)
     : [];
@@ -108,7 +107,10 @@ const getActionDecision = async (userMessage, appContext, contextualMemory = {})
     strict: true,
   });
 
-  const parsed = typeof aiRes?.content === "string" ? JSON.parse(aiRes.content) : aiRes?.content || {};
+  const parsed =
+    typeof aiRes?.content === "string"
+      ? JSON.parse(aiRes.content)
+      : aiRes?.content || {};
   const action = normalizeText(parsed.action).toLowerCase();
 
   if (!Object.values(ACTIONS).includes(action)) {
@@ -217,50 +219,13 @@ exports.getTrending = async (req, res, next) => {
   }
 };
 
-exports.moderateContent = async (req, res, next) => {
-  try {
-    const { content } = req.body;
-    const result = await contentModeration.moderate(content);
-    res.status(200).json({ success: true, data: result, requestId: req.id });
-  } catch (error) {
-    next(error);
-  }
-};
-
-exports.generateCaption = async (req, res, next) => {
-  try {
-    const { context = "", mood = "", musicTitle = "" } = req.body;
-    if (!aiConfig.features.captionGeneration) {
-      throw new Error("Feature temporarily disabled");
-    }
-    const userPrompt = `Context: ${context}\nTrack: ${musicTitle}\nMood: ${mood}`;
-    const aiRes = await aiService.chat(
-      [{ role: "user", content: userPrompt }],
-      {
-        systemPrompt: SYSTEM_PROMPTS.captionGeneration,
-        temperature: 0.6,
-        maxTokens: 250,
-        strict: true,
-      },
-    );
-    res.status(200).json({
-      success: true,
-      data: { caption: aiRes.content },
-      model: aiRes.model,
-      requestId: req.id,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
 exports.chat = async (req, res, next) => {
   try {
     const { messages = [] } = req.body;
     const userMessageRaw = messages[messages.length - 1]?.content || "";
     const userMessage = userMessageRaw.toLowerCase();
     const isStructured =
-      /post|song|music|feed|latest|favorite|save|remove|playlist|spotify/i.test(
+      /song|music|latest|favorite|save|remove|playlist|spotify/i.test(
         userMessage,
       );
 
@@ -363,33 +328,6 @@ exports.chat = async (req, res, next) => {
   }
 };
 
-exports.suggestHashtags = async (req, res) => {
-  try {
-    const { caption = "", musicTitle = "", genre = "" } = req.body;
-    const prompt = SYSTEM_PROMPTS.hashtagSuggestion
-      .replace("{caption}", caption)
-      .replace("{musicTitle}", musicTitle)
-      .replace("{genre}", genre);
-    const aiRes = await aiService.chat([{ role: "user", content: prompt }], {
-      temperature: 0.5,
-      responseSchema: "json_array",
-      strict: true,
-    });
-    res.status(200).json({
-      success: true,
-      data: { hashtags: aiRes.content },
-      model: aiRes.model,
-      requestId: req.id,
-    });
-  } catch (_e) {
-    res.status(200).json({
-      success: true,
-      data: { hashtags: ["music", "newmusic"], source: "fallback" },
-      requestId: req.id,
-    });
-  }
-};
-
 exports.getStats = async (req, res, next) => {
   try {
     const aiStats = aiService.getStats();
@@ -436,22 +374,15 @@ const getAppContext = async () => {
   if (cachedContext && now - lastFetchTime < CACHE_DURATION)
     return cachedContext;
   try {
-    const [posts, music] = await Promise.all([
-      Post.find()
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .populate("user", "username")
-        .lean(),
-      Music.find()
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .populate("artist", "username")
-        .lean(),
-    ]);
-    cachedContext = `Recent Posts: ${posts.map((p) => `@${p.user?.username}: ${p.caption}`).join(" | ")}\nTrending: ${music.map((m) => `"${m.title}"`).join(", ")}`;
+    const music = await Music.find()
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .populate("artist", "username")
+      .lean();
+    cachedContext = `Trending: ${music.map((m) => `"${m.title}"`).join(", ")}`;
     lastFetchTime = now;
     return cachedContext;
-  } catch (_err) {
+  } catch {
     return "[Context unavailable]";
   }
 };

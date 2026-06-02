@@ -145,7 +145,7 @@ body::after {
   color: rgba(236, 240, 248, 0.66);
 }
 
-.micro-feedback {
+.micro-interact {
   transition:
     transform var(--transition-weighted),
     box-shadow var(--transition-weighted),
@@ -155,7 +155,7 @@ body::after {
     opacity var(--transition-weighted);
 }
 
-.micro-feedback:active {
+.micro-interact:active {
   transform: scale(0.97);
 }
 

@@ -1,9 +1,10 @@
 /**
- * WebP & Performance Helper for MusicFeed.
+ * WebP & performance helper for Music Discover.
  * Automatically optimizes images via ImageKit transformations.
  */
 
-export const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&q=80"; // Stylized musical placeholder
+export const FALLBACK_IMAGE =
+  "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=800&q=80"; // Stylized musical placeholder
 
 export const optimizeImageUrl = (url, { width, height, quality = 80 } = {}) => {
   if (!url) return FALLBACK_IMAGE;
@@ -25,10 +26,9 @@ export const optimizeImageUrl = (url, { width, height, quality = 80 } = {}) => {
 };
 
 /**
- * Common image sizes used in MusicFeed.
+ * Common image sizes used in Music Discover.
  */
 export const IMAGE_SIZES = {
   AVATAR: { width: 100, height: 100 },
   THUMBNAIL: { width: 400, height: 400 },
-  POST_DETAIL: { width: 1200 },
 };

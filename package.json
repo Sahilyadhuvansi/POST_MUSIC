@@ -1,7 +1,7 @@
 {
-  "name": "postmusic-ai-enhanced",
+  "name": "music-discover",
   "version": "1.0.0",
-  "description": "Professional Full-Stack AI Social Music Platform",
+  "description": "Professional Full-Stack Music Discovery Platform",
   "engines": {
     "node": ">=20.x"
   },
@@ -25,4 +25,3 @@
     "concurrently": "^8.2.2"
   }
 }
-  

@@ -1,64 +1,9 @@
 import { useNavigate } from "react-router-dom";
 import {
   Play,
-  Eye,
   Music as MusicIcon,
   User,
-  ExternalLink,
 } from "lucide-react";
-import { DEFAULT_AVATAR } from "../../config";
-
-/**
- * PostCard Component for AI Chat
- * Renders a clickable post preview within the chat stream.
- */
-export const PostCard = ({ post }) => {
-  const navigate = useNavigate();
-
-  return (
-    <div
-      onClick={() => navigate(`/post/${post.id}`)}
-      className="group relative my-4 overflow-hidden rounded-3xl glass-dark border border-white/5 p-4 transition-all hover:bg-white/10 hover:border-indigo-500/30 cursor-pointer shadow-xl animate-fade-in-up"
-    >
-      <div className="flex items-center gap-4 mb-3">
-        <div className="h-10 w-10 rounded-xl border border-white/10 overflow-hidden">
-          <img
-            src={DEFAULT_AVATAR}
-            alt=""
-            className="h-full w-full object-cover"
-          />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-black text-white tracking-widest uppercase truncate">
-            {post.username || "Unknown user"}
-          </p>
-          <p className="text-[9px] text-indigo-400 font-bold uppercase tracking-widest mt-0.5">
-            Neural Feed
-          </p>
-        </div>
-        <div className="p-2 rounded-lg glass border-white/5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <Eye className="w-3 h-3 text-white" />
-        </div>
-      </div>
-
-      <p className="text-[11px] text-neutral-400 font-medium line-clamp-2 italic mb-4 leading-relaxed lowercase tracking-tight">
-        {post.caption}
-      </p>
-
-      <div className="flex items-center justify-between pt-3 border-t border-white/5">
-        <span className="text-[9px] font-black text-neutral-600 uppercase tracking-widest">
-          Post Entry
-        </span>
-        <div className="flex items-center gap-1.5 text-indigo-400">
-          <span className="text-[9px] font-black uppercase tracking-widest">
-            Tap to view
-          </span>
-          <ExternalLink className="w-3 h-3" />
-        </div>
-      </div>
-    </div>
-  );
-};
 
 /**
  * SongCard Component for AI Chat
@@ -126,3 +71,5 @@ export const EmptyStateCard = ({ message }) => (
     </p>
   </div>
 );
+
+

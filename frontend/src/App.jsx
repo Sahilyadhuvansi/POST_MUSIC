@@ -3,14 +3,11 @@ import { AuthProvider } from "./features/auth/AuthContext";
 import { MusicProvider } from "./features/music/MusicContext";
 
 // Pages
-import CreatePost from "./pages/create-post/CreatePost";
-import Feed from "./pages/feed/Feed";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Profile from "./pages/profile/Profile";
 import Music from "./pages/music/Music";
 import Recommendations from "./pages/Recommendations";
-import PostDetail from "./pages/PostDetail";
 
 // Components
 import Header from "./components/Header";
@@ -25,25 +22,11 @@ const AppRouter = () => {
     <Routes>
       <Route path="/" element={<Music />} />
       <Route path="/music" element={<Music />} />
-      <Route path="/feed" element={<Feed />} />
-      <Route path="/ai-picks" element={<Recommendations />} />
-      <Route
-        path="/create-post"
-        element={
-          <ProtectedRoute>
-            <CreatePost />
-          </ProtectedRoute>
-        }
-      />
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/post/:postId" element={<PostDetail />} />
       <Route path="/trending" element={<Music />} />
       <Route path="/artists" element={<Music />} />
-      <Route path="/about" element={<Feed />} />
-      <Route path="/guidelines" element={<Feed />} />
-      <Route path="/privacy" element={<Feed />} />
-      <Route path="/terms" element={<Feed />} />
+      <Route path="/ai-picks" element={<Recommendations />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
       <Route
         path="/profile"
         element={

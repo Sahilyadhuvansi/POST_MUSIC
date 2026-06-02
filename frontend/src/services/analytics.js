@@ -1,6 +1,6 @@
 /**
- * Simple, efficient analytics service for MusicFeed.
- * Ready for easy integration with PostHog or Google Analytics.
+ * Simple, efficient analytics service for Music Discover.
+ * Ready for easy integration with product analytics providers.
  */
 class AnalyticsService {
   constructor() {
@@ -17,12 +17,16 @@ class AnalyticsService {
     this.track("session_start");
   }
 
-  track(eventName, properties = {}) {
+  track(eventName, _properties = {}) {
     // Analytics tracking placeholder for production monitoring
   }
 
   reportLatency(type, latencyMs, metadata = {}) {
-    this.track("performance_latency", { type, latency: `${latencyMs}ms`, ...metadata });
+    this.track("performance_latency", {
+      type,
+      latency: `${latencyMs}ms`,
+      ...metadata,
+    });
   }
 
   pageView(path) {

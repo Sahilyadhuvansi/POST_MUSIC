@@ -45,7 +45,7 @@ const ProfileUniverseSection = ({
         <div className="flex flex-col items-center justify-center py-20 rounded-[40px] glass border-white/5 border-dashed">
           <Disc className="w-10 h-10 text-neutral-800 mb-4 animate-spin-slow" />
           <p className="text-sm font-bold text-neutral-500 italic">
-            Universe is silent. Catch a vibe in the stream.
+            Universe is silent. Discover music to start your collection.
           </p>
         </div>
       ) : (

@@ -1,15 +1,14 @@
 "use strict";
 
 const usersModel = require("./users.model");
-const postsModel = require("../posts/posts.model");
 const musicModel = require("../music/music.model");
 const storageService = require("../../services/storage.service");
 const { serializeUser } = require("../../utils/userSerializer");
 const ErrorResponse = require("../../utils/ErrorResponse");
 
 /**
- * USERS CONTROLLER - Post Music AI (Production Refactor)
- * Senior Feature: Consistent Error Delegation & High-Reliability Cleanups
+ * USERS CONTROLLER - Music Discover API
+ * Consistent error delegation and high-reliability cleanups.
  */
 
 // ─── Get Own Profile ──────────────────────────────────────────────────────────
@@ -19,10 +18,10 @@ const getProfile = async (req, res, next) => {
     if (!user) {
       return next(new ErrorResponse("User not found", 404, "USER_NOT_FOUND"));
     }
-    return res.status(200).json({ 
-      success: true, 
+    return res.status(200).json({
+      success: true,
       user: serializeUser(user),
-      requestId: req.id 
+      requestId: req.id,
     });
   } catch (err) {
     next(err);
@@ -36,10 +35,10 @@ const getUserById = async (req, res, next) => {
     if (!user) {
       return next(new ErrorResponse("User not found", 404, "USER_NOT_FOUND"));
     }
-    return res.status(200).json({ 
-      success: true, 
+    return res.status(200).json({
+      success: true,
       user: serializeUser(user),
-      requestId: req.id 
+      requestId: req.id,
     });
   } catch (err) {
     next(err);
@@ -57,9 +56,18 @@ const updateProfile = async (req, res, next) => {
 
     const updateData = {};
     if (username?.trim()) {
-      const existing = await usersModel.findOne({ username: username.trim(), _id: { $ne: req.user.id } });
+      const existing = await usersModel.findOne({
+        username: username.trim(),
+        _id: { $ne: req.user.id },
+      });
       if (existing) {
-        return next(new ErrorResponse("Username is already taken", 409, "DUPLICATE_ENTRY"));
+        return next(
+          new ErrorResponse(
+            "Username is already taken",
+            409,
+            "DUPLICATE_ENTRY",
+          ),
+        );
       }
       updateData.username = username.trim();
     }
@@ -67,20 +75,28 @@ const updateProfile = async (req, res, next) => {
     if (bio !== undefined) updateData.bio = bio;
 
     if (req.file) {
-      const result = await storageService.uploadFromBuffer(req.file.buffer, req.file.originalname, "postfeed/avatars");
+      const result = await storageService.uploadFromBuffer(
+        req.file.buffer,
+        req.file.originalname,
+        "music-discover/avatars",
+      );
       updateData.profilePic = result.url;
     }
 
-    const updated = await usersModel.findByIdAndUpdate(req.user.id, updateData, { new: true, runValidators: true });
+    const updated = await usersModel.findByIdAndUpdate(
+      req.user.id,
+      updateData,
+      { new: true, runValidators: true },
+    );
     if (!updated) {
       return next(new ErrorResponse("User not found", 404, "USER_NOT_FOUND"));
     }
 
-    return res.status(200).json({ 
-      success: true, 
-      message: "Profile updated successfully", 
+    return res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
       user: serializeUser(updated),
-      requestId: req.id 
+      requestId: req.id,
     });
   } catch (err) {
     next(err);
@@ -90,26 +106,29 @@ const updateProfile = async (req, res, next) => {
 // ─── Delete Account ───────────────────────────────────────────────────────────
 const deleteAccount = async (req, res, next) => {
   try {
-    const [posts, tracks, userRecord] = await Promise.all([
-      postsModel.find({ user: req.user.id }).select("imageFileId"),
-      musicModel.find({ artist: req.user.id }).select("audioFileId thumbnailFileId"),
+    const [tracks, userRecord] = await Promise.all([
+      musicModel
+        .find({ artist: req.user.id })
+        .select("audioFileId thumbnailFileId"),
       usersModel.findById(req.user.id).select("profilePicFileId"),
     ]);
 
     // Gather file IDs for asynchronous cleanup
     const fileIds = [
-      ...posts.map((p) => p.imageFileId).filter(Boolean),
-      ...tracks.flatMap((t) => [t.audioFileId, t.thumbnailFileId]).filter(Boolean),
+      ...tracks
+        .flatMap((t) => [t.audioFileId, t.thumbnailFileId])
+        .filter(Boolean),
       userRecord?.profilePicFileId,
     ].filter(Boolean);
 
     // Initial silent cleanup trigger
-    Promise.allSettled(fileIds.map((id) => storageService.deleteFile(id))).catch(() => {});
+    Promise.allSettled(
+      fileIds.map((id) => storageService.deleteFile(id)),
+    ).catch(() => {});
 
     await Promise.all([
-      postsModel.deleteMany({ user: req.user.id }),
       musicModel.deleteMany({ artist: req.user.id }),
-      usersModel.findByIdAndDelete(req.user.id)
+      usersModel.findByIdAndDelete(req.user.id),
     ]);
 
     res.clearCookie("token", {
@@ -118,10 +137,10 @@ const deleteAccount = async (req, res, next) => {
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     });
 
-    return res.status(200).json({ 
-      success: true, 
+    return res.status(200).json({
+      success: true,
       message: "Account deleted successfully",
-      requestId: req.id 
+      requestId: req.id,
     });
   } catch (err) {
     next(err);

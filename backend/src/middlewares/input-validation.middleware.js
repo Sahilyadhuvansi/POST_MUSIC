@@ -39,44 +39,7 @@ const validateInputRisk = (input, label = "Input") => {
   return null;
 };
 
-exports.validateCaptionInput = (req, res, next) => {
-  const { context, mood, musicTitle } = req.body;
-  const errors = [];
 
-  const contextErr = validateInputRisk(context, "Context");
-  if (contextErr) errors.push(contextErr);
-
-  const titleErr = validateInputRisk(musicTitle, "Music Title");
-  if (titleErr) errors.push(titleErr);
-
-  if (mood && !['happy', 'sad', 'energetic', 'chill', 'romantic'].includes(mood.toLowerCase())) {
-    errors.push("Mood must be a recognized emotion");
-  }
-
-  if (errors.length > 0) {
-    return next(new ErrorResponse("Validation failed", 400, "VALIDATION_ERROR", errors));
-  }
-  next();
-};
-
-exports.validateHashtagInput = (req, res, next) => {
-  const { caption, musicTitle, genre } = req.body;
-  const errors = [];
-
-  const captionErr = validateInputRisk(caption, "Caption");
-  if (captionErr) errors.push(captionErr);
-
-  const titleErr = validateInputRisk(musicTitle, "Music Title");
-  if (titleErr) errors.push(titleErr);
-
-  const genreErr = validateInputRisk(genre, "Genre");
-  if (genreErr) errors.push(genreErr);
-
-  if (errors.length > 0) {
-    return next(new ErrorResponse("Validation failed", 400, "VALIDATION_ERROR", errors));
-  }
-  next();
-};
 
 exports.validateChatInput = (req, res, next) => {
   const { messages } = req.body;

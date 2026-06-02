@@ -1,6 +1,6 @@
-# 🚀 PostFeed: AI-Enhanced Music Social Platform
+# 🚀 Music Discover: AI-Enhanced Music Discovery Platform
 
-A professional, monorepo-structured full-stack application featuring AI-powered music recommendations, content moderation, and a dynamic social feed.
+A professional, monorepo-structured full-stack application featuring AI-powered music recommendations, playlist intelligence, and personalized discovery.
 
 ---
 
@@ -14,8 +14,8 @@ graph TD
         SERVICES[frontend Services]
     end
 
-    subgraph backend [Node.js + Express]
-        ROUTES[Express Routes]
+   subgraph backend [Node.js API]
+      ROUTES[API Routes]
         CONTROLLERS[Feature Controllers]
         BIZ_LOGIC[Business Logic Services]
         MODELS[Mongoose Models]
@@ -33,13 +33,14 @@ graph TD
 ## 🛠️ Tech Stack
 
 - **frontend**: React 18, Vite, Tailwind CSS, Lucide React, Axios.
-- **backend**: Node.js, Express, Mongoose, JWT, Helmet, Morgan.
+- **backend**: Node.js API, Mongoose, JWT, Helmet, Morgan.
 - **AI**: Groq (Llama3), Google Cloud Platform features.
 - **Storage**: ImageKit.io for media assets.
 
 ## 🚀 Getting Started
 
 ### Prerequisites
+
 - Node.js >= 18.x
 - MongoDB (Local or Atlas)
 - Groq API Key
@@ -47,12 +48,14 @@ graph TD
 ### Installation
 
 1. **Clone the repository**:
+
    ```bash
    git clone <repo-url>
-   cd POSTFEED
+   cd MUSIC-DISCOVER
    ```
 
 2. **Install Root Dependencies**:
+
    ```bash
    npm install
    ```
@@ -70,18 +73,15 @@ graph TD
 ## 🛤️ API Endpoints
 
 ### Auth
+
 - `POST /api/auth/register` - Create a new account
 - `POST /api/auth/login` - Authenticate user
 - `GET /api/auth/me` - Get current session user
 
-### Posts
-- `GET /api/posts/feed` - Get global social feed
-- `POST /api/posts/create` - Broadcast a new post
-
 ### AI
+
 - `POST /api/ai/chat` - Interactive AI companion
 - `GET /api/ai/recommendations` - Personalized music discovery
-- `POST /api/ai/generate-caption` - AI-powered creative context
 
 ---
 
@@ -94,4 +94,4 @@ graph TD
 
 ---
 
-*Built with ❤️ by [Sahil Yadav]*
+_Built with ❤️ by [Sahil Yadav]_

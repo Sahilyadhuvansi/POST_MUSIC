@@ -1,32 +1,3 @@
-export function PostSkeleton() {
-  return (
-    <div className="bg-white/[0.02] rounded-3xl p-6 mb-4 border border-white/5 animate-pulse">
-      <div className="flex items-start gap-4 mb-6">
-        <div className="w-12 h-12 rounded-2xl bg-white/5 shimmer" />
-        <div className="flex-1 space-y-2 py-1">
-          <div className="h-4 bg-white/5 rounded-full w-2/3 shimmer" />
-          <div className="h-3 bg-white/5 rounded-full w-1/3 shimmer" />
-        </div>
-      </div>
-      <div className="space-y-3 mb-6">
-        <div className="h-4 bg-white/5 rounded-full w-full shimmer" />
-        <div className="h-4 bg-white/5 rounded-full w-4/5 shimmer" />
-      </div>
-      <div className="aspect-square bg-white/5 rounded-[32px] shimmer" />
-    </div>
-  );
-}
-
-export function PostSkeletonLoader() {
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-      {[...Array(10)].map((_, i) => (
-        <PostSkeleton key={i} />
-      ))}
-    </div>
-  );
-}
-
 export function ProfileSkeleton() {
   return (
     <div className="space-y-12 max-w-[1400px] mx-auto px-6 pt-16">
@@ -39,7 +10,10 @@ export function ProfileSkeleton() {
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         {[...Array(8)].map((_, i) => (
-          <div key={i} className="aspect-square bg-white/5 rounded-[32px] shimmer" />
+          <div
+            key={i}
+            className="aspect-square bg-white/5 rounded-[32px] shimmer"
+          />
         ))}
       </div>
     </div>

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { X, Send } from "lucide-react";
 import api from "../services/api";
-import { PostCard, SongCard, EmptyStateCard } from "./ui/AIChatCards";
+import { SongCard, EmptyStateCard } from "./ui/AIChatCards";
 import "../styles/FloatingAIButton.css";
 import { useNavigate } from "react-router-dom";
 import { useMusic } from "../features/music/MusicContext";
@@ -210,10 +210,6 @@ const FloatingAIButton = () => {
                   {message.role === "assistant" &&
                   message.type === "ui-controller" ? (
                     <div className="structured-content">
-                      {message.payload?.type === "posts" &&
-                        message.payload.data?.map((post) => (
-                          <PostCard key={post.id} post={post} />
-                        ))}
                       {message.payload?.type === "songs" &&
                         message.payload.data?.map((song) => (
                           <SongCard key={song.id} song={song} />
@@ -221,8 +217,7 @@ const FloatingAIButton = () => {
                       {message.payload?.type === "empty" && (
                         <EmptyStateCard message={message.payload.message} />
                       )}
-                      {/* Fallback for unknown UI types */}
-                      {!["posts", "songs", "empty"].includes(
+                      {!["songs", "empty"].includes(
                         message.payload?.type,
                       ) && (
                         <p>

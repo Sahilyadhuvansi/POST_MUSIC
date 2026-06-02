@@ -4,7 +4,7 @@
 const { cleanEnv, str, url, num } = require("envalid");
 
 const env = cleanEnv(process.env, {
-  // PORT handled as number to match Express expectations
+  // PORT handled as number to match server expectations
   PORT: num({ default: 3001 }),
 
   // Optional values with sensible defaults

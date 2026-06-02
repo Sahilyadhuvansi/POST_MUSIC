@@ -55,32 +55,6 @@ router.post("/mood-playlist", aiRateLimiter, aiController.moodPlaylist);
  */
 router.get("/trending", aiRateLimiter, aiController.getTrending);
 
-// ═══════════════════════════════════════════════════════════════
-// Content Moderation Routes
-// ═══════════════════════════════════════════════════════════════
-
-/**
- * @route   POST /api/ai/moderate-content
- * @desc    Moderate text or image content
- * @access  Private
- */
-router.post("/moderate-content", ...aiMiddleware, aiController.moderateContent);
-
-// ═══════════════════════════════════════════════════════════════
-// Content Generation Routes
-// ═══════════════════════════════════════════════════════════════
-
-/**
- * @route   POST /api/ai/generate-caption
- * @desc    Generate AI caption for post
- * @access  Private
- */
-router.post(
-  "/generate-caption",
-  ...aiMiddleware,
-  validation.validateCaptionInput,
-  aiController.generateCaption,
-);
 
 /**
  * @route   POST /api/ai/chat
@@ -102,17 +76,7 @@ router.post(
  */
 router.get("/tools", aiRateLimiter, aiController.getTools);
 
-/**
- * @route   POST /api/ai/suggest-hashtags
- * @desc    Suggest hashtags for post
- * @access  Private
- */
-router.post(
-  "/suggest-hashtags",
-  ...aiMiddleware,
-  validation.validateHashtagInput,
-  aiController.suggestHashtags,
-);
+
 
 // ═══════════════════════════════════════════════════════════════
 // Statistics

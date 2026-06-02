@@ -2,7 +2,16 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../features/auth/AuthContext";
 import { useToast } from "../components/ui/Toast";
-import { User, Mail, Lock, Eye, EyeOff, ShieldCheck, ArrowRight, Sparkles } from "lucide-react";
+import {
+  User,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  ArrowRight,
+  Sparkles,
+} from "lucide-react";
 
 const Register = () => {
   const [username, setUsername] = useState("");
@@ -33,10 +42,13 @@ const Register = () => {
 
     const result = await register({ username, email, password });
     if (result.success) {
-      addToast("Welcome to the MusicFeed Universe!", "success");
+      addToast("Welcome to MusicDiscover!", "success");
       navigate("/");
     } else {
-      addToast(result.message || "Registration failed. Frequency sync unstable.", "error");
+      addToast(
+        result.message || "Registration failed. Frequency sync unstable.",
+        "error",
+      );
       setLoading(false);
     }
   };
@@ -59,14 +71,20 @@ const Register = () => {
             </div>
           </div>
           <h2 className="text-3xl font-black text-white tracking-tight italic">
-            Join <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-pink-400">MusicFeed</span>
+            Join{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-pink-400">
+              MusicDiscover
+            </span>
           </h2>
           <p className="mt-3 text-sm text-neutral-500 font-medium uppercase tracking-widest">
             Create your digital hub
           </p>
         </div>
 
-        <form className="grid grid-cols-1 md:grid-cols-2 gap-6" onSubmit={handleSubmit}>
+        <form
+          className="grid grid-cols-1 md:grid-cols-2 gap-6"
+          onSubmit={handleSubmit}
+        >
           {/* Username */}
           <div className="space-y-2 md:col-span-1">
             <label className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500 ml-1 flex items-center gap-2">
@@ -102,7 +120,7 @@ const Register = () => {
           {/* Password */}
           <div className="space-y-2 md:col-span-1">
             <label className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500 ml-1 flex items-center gap-2">
-              <Lock className="w-3 h-3" /> Secret Key
+              <Lock className="w-3 h-3" /> Password
             </label>
             <div className="relative">
               <input
@@ -119,7 +137,11 @@ const Register = () => {
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-neutral-600 hover:text-white transition-colors"
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {showPassword ? (
+                  <EyeOff className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
               </button>
             </div>
           </div>
@@ -153,10 +175,19 @@ const Register = () => {
               onClick={() => setAgreeTerms(!agreeTerms)}
               className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-all duration-300 ${agreeTerms ? "bg-indigo-500" : "bg-neutral-800"}`}
             >
-              <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-transform duration-300 ${agreeTerms ? "translate-x-6" : "translate-x-1"}`} />
+              <div
+                className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-transform duration-300 ${agreeTerms ? "translate-x-6" : "translate-x-1"}`}
+              />
             </button>
             <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest leading-relaxed">
-              Accept Universe <Link to="#" className="text-white hover:underline">Guidelines</Link> & <Link to="#" className="text-white hover:underline">Privacy</Link>
+              Accept Universe{" "}
+              <Link to="#" className="text-white hover:underline">
+                Guidelines
+              </Link>{" "}
+              &{" "}
+              <Link to="#" className="text-white hover:underline">
+                Privacy
+              </Link>
             </p>
           </div>
 
@@ -168,22 +199,24 @@ const Register = () => {
           >
             <div className="relative z-10 flex items-center justify-center gap-3">
               {loading ? "Initializing..." : "Register Identity"}
-              {!loading && <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />}
+              {!loading && (
+                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+              )}
             </div>
           </button>
         </form>
 
         {/* Navigation Footer */}
         <div className="mt-12 pt-8 border-t border-white/5 text-center">
-            <p className="text-xs text-neutral-500 font-medium">
-              ALREADY HAVE A HUB?{" "}
-              <Link
-                to="/login"
-                className="ml-2 font-black text-white hover:text-indigo-400 transition-colors uppercase tracking-widest"
-              >
-                Sign in
-              </Link>
-            </p>
+          <p className="text-xs text-neutral-500 font-medium">
+            ALREADY HAVE A HUB?{" "}
+            <Link
+              to="/login"
+              className="ml-2 font-black text-white hover:text-indigo-400 transition-colors uppercase tracking-widest"
+            >
+              Sign in
+            </Link>
+          </p>
         </div>
       </div>
     </div>
@@ -191,4 +224,3 @@ const Register = () => {
 };
 
 export default Register;
-

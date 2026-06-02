@@ -38,7 +38,7 @@ const MusicCard = ({
           }
           playTrack(track, playableTracks);
         }}
-        className="micro-feedback relative w-full aspect-square overflow-hidden rounded-[20px] bg-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/45"
+        className="micro-interact relative w-full aspect-square overflow-hidden rounded-[20px] bg-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/45"
       >
         {track.thumbnail ? (
           <img
@@ -89,7 +89,7 @@ const MusicCard = ({
               toggleFavorite(track);
             }}
             disabled={savingId === track._id}
-            className={`micro-feedback h-8 w-8 rounded-full border flex items-center justify-center disabled:opacity-50 ${
+            className={`micro-interact h-8 w-8 rounded-full border flex items-center justify-center disabled:opacity-50 ${
               isSaved
                 ? "border-pink-500/50 bg-pink-500/20 text-pink-300 shadow-[0_10px_24px_rgba(236,72,153,0.18)]"
                 : "border-white/15 bg-white/5 text-neutral-500 hover:text-indigo-200 hover:border-indigo-400/40 hover:bg-white/10"
@@ -107,7 +107,7 @@ const MusicCard = ({
         ) : (
           <button
             onClick={() => handleOpenPlaylist(track)}
-            className="micro-feedback h-8 rounded-full border border-white/15 bg-white/5 px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-400 hover:text-white hover:border-white/30 hover:bg-white/10"
+            className="micro-interact h-8 rounded-full border border-white/15 bg-white/5 px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-400 hover:text-white hover:border-white/30 hover:bg-white/10"
           >
             Open
           </button>

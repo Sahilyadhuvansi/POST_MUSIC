@@ -1,3 +1,5 @@
+/* eslint-disable react-refresh/only-export-components */
+
 import {
   createContext,
   useContext,
@@ -88,7 +90,7 @@ export const MusicProvider = ({ children }) => {
     if (!player || !Number.isFinite(seconds)) return;
     try {
       player.seekTo(seconds, true);
-    } catch (_) {
+    } catch {
       // Seek failed silenty to prevent UI interruption
     }
   }, []);
@@ -103,7 +105,7 @@ export const MusicProvider = ({ children }) => {
         if (duration > 0) {
           setProgress((currentTime / duration) * 100);
         }
-      } catch (e) {
+      } catch {
         // Ignore errors if player is not ready
       }
     }, 1000);
@@ -123,7 +125,7 @@ export const MusicProvider = ({ children }) => {
         try {
           playerRef.current.playVideo();
           startProgressPolling();
-        } catch (_) {
+        } catch {
           // Playback failed
         }
       }
@@ -131,7 +133,7 @@ export const MusicProvider = ({ children }) => {
       if (playerRef.current) {
         try {
           playerRef.current.pauseVideo();
-        } catch (_) {
+        } catch {
           // Pause failed
         }
       }
@@ -145,7 +147,7 @@ export const MusicProvider = ({ children }) => {
       try {
         // YouTube API expects 0-100, our state is 0-1
         playerRef.current.setVolume(volume * 100);
-      } catch (e) {
+      } catch {
         /* ignore */
       }
     }
@@ -328,7 +330,7 @@ export const MusicProvider = ({ children }) => {
     try {
       const d = await event.target.getDuration();
       setDuration(d);
-    } catch (_) {
+    } catch {
       // Could not get duration
     }
   };
@@ -342,7 +344,9 @@ export const MusicProvider = ({ children }) => {
       try {
         const d = await event.target.getDuration();
         if (d > 0 && d !== duration) setDuration(d);
-      } catch (_) {}
+      } catch {
+        // Duration fetch can fail for some tracks before player metadata is ready
+      }
     } else if (event.data === 2) {
       // Paused
       setIsPlaying(false);

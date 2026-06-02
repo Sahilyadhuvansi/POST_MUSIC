@@ -24,8 +24,8 @@ const ensureLikedSongsPlaylist = async (ownerId) => {
 };
 
 /**
- * MUSIC CONTROLLER - Post Music AI (Production Refactor)
- * Senior Feature: Silent Error Handling & Scalable File Cleanup
+ * MUSIC CONTROLLER - Music Discover API
+ * Silent error handling and scalable file cleanup.
  */
 
 // ─── Create Music (YouTube Focus) ─────────────────────────────────────────────
@@ -60,7 +60,7 @@ const createMusic = async (req, res, next) => {
           });
           await liked.save();
         }
-      } catch (_) {
+      } catch {
         // Non-blocking sync.
       }
 
@@ -94,7 +94,7 @@ const createMusic = async (req, res, next) => {
         });
         await liked.save();
       }
-    } catch (_) {
+    } catch {
       // Non-blocking sync: music save should still succeed.
     }
 
@@ -240,7 +240,7 @@ const deleteMusic = async (req, res, next) => {
         );
         await liked.save();
       }
-    } catch (_) {
+    } catch {
       // Non-blocking sync: deletion should still succeed.
     }
 

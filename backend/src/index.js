@@ -12,12 +12,10 @@ const morgan = require("morgan");
 const mongoose = require("mongoose");
 const connectDB = require("./config/db");
 const authRoutes = require("./features/auth/auth.routes");
-const postRoutes = require("./features/posts/posts.routes");
 const userRoutes = require("./features/users/users.routes");
 const musicRoutes = require("./features/music/music.routes");
 const playlistRoutes = require("./features/playlists/playlists.routes");
 const aiRoutes = require("./features/ai/ai.routes");
-const ErrorResponse = require("./utils/ErrorResponse");
 const requestId = require("./middlewares/request-id.middleware");
 const performanceMiddleware = require("./middlewares/performance.middleware");
 const errorHandler = require("./middlewares/error-handler.middleware");
@@ -30,7 +28,7 @@ const isConfigured = !!process.env.JWT_SECRET && !!process.env.MONGO_URI;
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 const allowedOrigins = [
-  "https://postfeeds-xi.vercel.app", // Definitive Production Origin
+  "https://music-discover.vercel.app", // Definitive Production Origin
   /\.vercel\.app$/, // Any Vercel subdomain (Production/Preview)
   ...(process.env.CORS_ORIGINS || "")
     .split(",")
@@ -40,8 +38,8 @@ const allowedOrigins = [
 if (process.env.frontend_URL) allowedOrigins.push(process.env.frontend_URL);
 
 /**
- * CORS POLICY - Post Music AI (Production Refactor)
- * Senior Feature: Failure-resistant origin matching with wildcard support
+ * CORS policy for Music Discover API.
+ * Failure-resistant origin matching with wildcard support.
  */
 const corsOptions = {
   origin: (origin, cb) => {
@@ -131,7 +129,7 @@ app.use(cookieParser());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(performanceMiddleware); // Track latency for EVERY request
-app.use(analyticsMiddleware); // Track AI performance post-parsing
+app.use(analyticsMiddleware); // Track AI performance after parsing
 
 // ─── Rate Limiting ────────────────────────────────────────────────────────────
 /**
@@ -173,7 +171,7 @@ const authLimiter = rateLimit({
 app.get("/", (_req, res) => {
   res
     .status(200)
-    .json({ message: "PostFeed & Music API is running", version: "1.0.0" });
+    .json({ message: "Music Discover API is running", version: "1.0.0" });
 });
 
 app.get("/api/health", (_req, res) => {
@@ -191,7 +189,6 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/auth", authLimiter, authRoutes);
-app.use("/api/posts", apiLimiter, postRoutes);
 app.use("/api/users", apiLimiter, userRoutes);
 app.use("/api/music", apiLimiter, musicRoutes);
 app.use("/api/playlists", apiLimiter, playlistRoutes);
@@ -230,7 +227,7 @@ async function startServer() {
 
   // ─── FINAL LISTEN (Outside failure blocks — Render REQUIREMENT) ──────────────
   app.listen(PORT, "0.0.0.0", () => {
-    logger.info(`🚀 PostFeed backend active on 0.0.0.0:${PORT}`);
+    logger.info(`🚀 Music Discover backend active on 0.0.0.0:${PORT}`);
     if (!isConfigured) {
       logger.warn("⚠️ JWT_SECRET or MONGO_URI missing from environment!");
     }

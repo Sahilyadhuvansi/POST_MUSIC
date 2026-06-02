@@ -3,7 +3,7 @@ import {
   fetchPlaylistTracks,
 } from "../../pages/music/youtube.service";
 
-const STORAGE_KEY = "postfeed_music_command_brain_v1";
+const STORAGE_KEY = "musicdiscover_music_command_brain_v1";
 
 const DEFAULT_STATE = {
   playlists: [],
@@ -132,26 +132,6 @@ const topEntry = (obj = {}) => {
   if (!entries.length) return null;
   entries.sort((a, b) => b[1] - a[1]);
   return entries[0];
-};
-
-const ensurePlaylist = (state, name) => {
-  const normalized = normalize(name);
-  if (!normalized) return null;
-
-  const existing = state.playlists.find(
-    (p) => lower(p.name) === lower(normalized),
-  );
-  if (existing) return existing;
-
-  const playlist = {
-    id: `pl_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
-    name: normalized,
-    tracks: [],
-    createdAt: new Date().toISOString(),
-  };
-
-  state.playlists = [...state.playlists, playlist];
-  return playlist;
 };
 
 const safeNavigate = (navigate, path) => {
@@ -741,12 +721,6 @@ const executeSingleClause = async (clause, ctx, state, logs) => {
   if (/\b(go to|open)\b.*\b(playlists?)\b/.test(text)) {
     safeNavigate(ctx.navigate, "/music");
     logs.push("Opened playlists workspace on music page.");
-    return;
-  }
-
-  if (/\b(go to|open)\b.*\b(feed)\b/.test(text)) {
-    safeNavigate(ctx.navigate, "/feed");
-    logs.push("Opened feed.");
     return;
   }
 

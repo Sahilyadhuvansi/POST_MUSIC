@@ -10,7 +10,7 @@ const aiConfig = require("../config/ai.config");
  * Filters inappropriate content (images, text, spam) using multi-layer analysis.
  */
 class ContentModerationService {
-constructor() {
+  constructor() {
     // Initialize Google Cloud Vision if configured
     if (aiConfig.googleVision.enabled) {
       this.visionClient = new vision.ImageAnnotatorClient({
@@ -21,8 +21,13 @@ constructor() {
     this.filter = new Filter();
     this.sentiment = new Sentiment();
     this.spamPatterns = [
-      /buy now/i, /click here/i, /free money/i, /earn \$\d+/i,
-      /winner/i, /congratulations/i, /prize/i
+      /buy now/i,
+      /click here/i,
+      /free money/i,
+      /earn \$\d+/i,
+      /winner/i,
+      /congratulations/i,
+      /prize/i,
     ];
   }
 
@@ -30,28 +35,37 @@ constructor() {
    * Moderate image content using Computer Vision (CV)
    */
   async moderateImage(imageBuffer) {
-    if (!this.visionClient) return { safe: true, warning: "Vision service inactive" };
+    if (!this.visionClient)
+      return { safe: true, warning: "Vision service inactive" };
 
     try {
       const [result] = await this.visionClient.safeSearchDetection(imageBuffer);
       const detections = result.safeSearchAnnotation;
 
-      const isNSFW = 
-        detections.adult === "LIKELY" || detections.adult === "VERY_LIKELY" ||
-        detections.violence === "LIKELY" || detections.violence === "VERY_LIKELY";
+      const isNSFW =
+        detections.adult === "LIKELY" ||
+        detections.adult === "VERY_LIKELY" ||
+        detections.violence === "LIKELY" ||
+        detections.violence === "VERY_LIKELY";
 
-      const hasRacy = detections.racy === "LIKELY" || detections.racy === "VERY_LIKELY";
+      const hasRacy =
+        detections.racy === "LIKELY" || detections.racy === "VERY_LIKELY";
 
       return {
         safe: !isNSFW,
         detections,
         shouldFlag: isNSFW,
         shouldWarn: hasRacy,
-        reason: isNSFW ? "Violation: Inappropriate content" : "Visual content analyzed"
+        reason: isNSFW
+          ? "Violation: Inappropriate content"
+          : "Visual content analyzed",
       };
-    } catch (error) {
+    } catch {
       // console log scrubbed
-      return { safe: true, error: "Vision scan bypassed due to service error." };
+      return {
+        safe: true,
+        error: "Vision scan bypassed due to service error.",
+      };
     }
   }
 
@@ -79,7 +93,7 @@ constructor() {
     }
 
     // ─── Spam Pattern Matching ───
-    const isSpam = this.spamPatterns.some(pattern => pattern.test(text));
+    const isSpam = this.spamPatterns.some((pattern) => pattern.test(text));
     if (isSpam) {
       result.safe = false;
       result.issues.push("Spam/Scam pattern");
@@ -93,7 +107,7 @@ constructor() {
    * Universal Content Moderation (Holistic Analysis)
    */
   async moderateContent(options = {}) {
-    const { text = null, image = null, userId = null } = options;
+    const { text = null, image = null } = options;
 
     const results = {
       safe: true,
@@ -127,7 +141,7 @@ constructor() {
   getStats() {
     return {
       activeEngines: { vision: !!this.visionClient, nlp: true },
-      safetyVersion: "2.1.0"
+      safetyVersion: "2.1.0",
     };
   }
 }

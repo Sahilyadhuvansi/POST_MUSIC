@@ -62,7 +62,7 @@ const Player = () => {
     if (!!currentTrack && isExpanded) {
       // Save current scroll position
       const scrollY = window.scrollY;
-      
+
       // Freeze the background + prevent horizontal shifts (mobile keyboard safety)
       document.body.style.position = "fixed";
       document.body.style.top = `-${scrollY}px`;
@@ -70,7 +70,7 @@ const Player = () => {
       document.body.style.right = "0";
       document.body.style.width = "100%";
       document.body.style.overflow = "hidden";
-      
+
       return () => {
         // Restore background scroll position
         const savedY = document.body.style.top;
@@ -80,7 +80,7 @@ const Player = () => {
         document.body.style.right = "";
         document.body.style.width = "";
         document.body.style.overflow = "";
-        
+
         if (savedY) {
           window.scrollTo(0, parseInt(savedY || "0") * -1);
         }
@@ -114,11 +114,10 @@ const Player = () => {
   // Safety check: return if no track loaded
   if (!currentTrack?.youtubeUrl) return null;
 
-
   return (
     <>
       {isExpanded && (
-        <div 
+        <div
           className="fixed inset-0 z-[1300]"
           role="dialog"
           aria-modal="true"
@@ -136,7 +135,7 @@ const Player = () => {
               <div className="relative flex items-center justify-between border-b border-white/5 px-5 py-4 sm:px-6">
                 <button
                   onClick={() => setIsExpanded(false)}
-                  className="micro-feedback flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/45"
+                  className="micro-interact flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-neutral-400 hover:text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/45"
                   aria-label="Minimize player"
                 >
                   <ChevronDown className="h-5 w-5" />
@@ -217,13 +216,13 @@ const Player = () => {
                     <button
                       onClick={playPrevious}
                       disabled={playlist.length <= 1}
-                      className="micro-feedback rounded-full border border-white/10 bg-white/[0.04] p-4 text-neutral-500 hover:text-white hover:bg-white/[0.08] hover:shadow-[0_10px_26px_rgba(0,0,0,0.22)] disabled:opacity-25"
+                      className="micro-interact rounded-full border border-white/10 bg-white/[0.04] p-4 text-neutral-500 hover:text-white hover:bg-white/[0.08] hover:shadow-[0_10px_26px_rgba(0,0,0,0.22)] disabled:opacity-25"
                     >
                       <SkipBack className="h-6 w-6 fill-current" />
                     </button>
                     <button
                       onClick={togglePlay}
-                      className="group micro-feedback relative flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full bg-white text-black shadow-[0_0_60px_rgba(255,255,255,0.18)] hover:shadow-[0_0_72px_rgba(255,255,255,0.22)]"
+                      className="group micro-interact relative flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full bg-white text-black shadow-[0_0_60px_rgba(255,255,255,0.18)] hover:shadow-[0_0_72px_rgba(255,255,255,0.22)]"
                     >
                       <div className="absolute inset-0 rounded-full bg-white blur-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-20" />
                       {isPlaying ? (
@@ -235,7 +234,7 @@ const Player = () => {
                     <button
                       onClick={playNext}
                       disabled={playlist.length <= 1}
-                      className="micro-feedback rounded-full border border-white/10 bg-white/[0.04] p-4 text-neutral-500 hover:text-white hover:bg-white/[0.08] hover:shadow-[0_10px_26px_rgba(0,0,0,0.22)] disabled:opacity-25"
+                      className="micro-interact rounded-full border border-white/10 bg-white/[0.04] p-4 text-neutral-500 hover:text-white hover:bg-white/[0.08] hover:shadow-[0_10px_26px_rgba(0,0,0,0.22)] disabled:opacity-25"
                     >
                       <SkipForward className="h-6 w-6 fill-current" />
                     </button>
@@ -284,7 +283,7 @@ const Player = () => {
               <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.06),transparent_28%,transparent_74%,rgba(255,255,255,0.025))]" />
               <button
                 onClick={() => setIsExpanded(true)}
-                className="micro-feedback h-12 w-12 overflow-hidden rounded-xl border border-white/10 bg-neutral-900 shadow-[0_10px_28px_rgba(0,0,0,0.3)]"
+                className="micro-interact h-12 w-12 overflow-hidden rounded-xl border border-white/10 bg-neutral-900 shadow-[0_10px_28px_rgba(0,0,0,0.3)]"
               >
                 {coverArt ? (
                   <img
@@ -315,14 +314,14 @@ const Player = () => {
                 <button
                   onClick={playPrevious}
                   disabled={playlist.length <= 1}
-                  className="micro-feedback flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-neutral-500 hover:text-white hover:bg-white/10 disabled:opacity-25"
+                  className="micro-interact flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-neutral-500 hover:text-white hover:bg-white/10 disabled:opacity-25"
                   aria-label="Previous track"
                 >
                   <SkipBack className="h-4 w-4 fill-current" />
                 </button>
                 <button
                   onClick={togglePlay}
-                  className="micro-feedback flex h-10 w-10 items-center justify-center rounded-full bg-white text-black hover:shadow-[0_0_36px_rgba(255,255,255,0.26)]"
+                  className="micro-interact flex h-10 w-10 items-center justify-center rounded-full bg-white text-black hover:shadow-[0_0_36px_rgba(255,255,255,0.26)]"
                   aria-label={isPlaying ? "Pause" : "Play"}
                 >
                   {isPlaying ? (
@@ -334,14 +333,14 @@ const Player = () => {
                 <button
                   onClick={playNext}
                   disabled={playlist.length <= 1}
-                  className="micro-feedback flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-neutral-500 hover:text-white hover:bg-white/10 disabled:opacity-25"
+                  className="micro-interact flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-neutral-500 hover:text-white hover:bg-white/10 disabled:opacity-25"
                   aria-label="Next track"
                 >
                   <SkipForward className="h-4 w-4 fill-current" />
                 </button>
                 <button
                   onClick={() => setIsExpanded(true)}
-                  className="micro-feedback hidden sm:flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-neutral-500 hover:text-white hover:bg-white/10"
+                  className="micro-interact hidden sm:flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-neutral-500 hover:text-white hover:bg-white/10"
                   aria-label="Open expanded player"
                 >
                   <Expand className="h-4 w-4" />

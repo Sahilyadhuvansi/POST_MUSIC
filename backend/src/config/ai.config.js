@@ -3,8 +3,8 @@
 require("dotenv").config();
 
 /**
- * AI Services Configuration for POSTFEED
- * Centralized configuration for all AI/ML services used in the application
+ * AI Services Configuration for Music Discover
+ * Centralized configuration for all AI/ML services used in the application.
  */
 module.exports = {
   groq: {
@@ -25,7 +25,7 @@ module.exports = {
     // How strictly should we flag inappropriate content? (0.8 = 80% confidence required)
     moderation: {
       enabled: true,
-      threshold: 0.8, 
+      threshold: 0.8,
     },
 
     // Music Recommendation weights
@@ -48,9 +48,9 @@ module.exports = {
 
   cache: {
     ttl: {
-      recommendations: 3600, 
-      trends: 1800, 
-      moderation: 86400, 
+      recommendations: 3600,
+      trends: 1800,
+      moderation: 86400,
     },
     maxSize: 1000,
   },
@@ -63,7 +63,7 @@ module.exports = {
   },
 
   costLimits: {
-    dailyBudget: 5.0, 
-    warningThreshold: 0.8, 
+    dailyBudget: 5.0,
+    warningThreshold: 0.8,
   },
 };

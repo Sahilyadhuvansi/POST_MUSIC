@@ -31,16 +31,15 @@ const isPlaceholderEnv =
 
 const PRODUCTION_API_FALLBACKS = {
   // Empty string = use Vercel's /api rewrite proxy (no CORS needed)
-  "postfeeds-xi.vercel.app": "https://post-music.onrender.com",
+  "music-discover.vercel.app": "https://music-discover.onrender.com",
 };
 
 const FALLBACK_API_URL = LOCAL_HOSTS.has(FRONTEND_HOST)
   ? "http://localhost:3001"
   : PRODUCTION_API_FALLBACKS[FRONTEND_HOST] || "";
 
-const effectiveEnvApiBase = (isEnvPointingToFrontend || isPlaceholderEnv)
-  ? ""
-  : normalizedEnvApiBase;
+const effectiveEnvApiBase =
+  isEnvPointingToFrontend || isPlaceholderEnv ? "" : normalizedEnvApiBase;
 
 export const API_URL = normalizeApiBase(
   effectiveEnvApiBase || FALLBACK_API_URL,

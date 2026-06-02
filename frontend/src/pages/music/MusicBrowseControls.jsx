@@ -72,7 +72,7 @@ const MusicBrowseControls = ({
                 setSearchQuery("");
                 setPlaylistMeta(null);
               }}
-              className={`micro-feedback px-4 sm:px-5 py-2.5 rounded-2xl text-[11px] font-semibold uppercase tracking-[0.16em] ${
+              className={`micro-interact px-4 sm:px-5 py-2.5 rounded-2xl text-[11px] font-semibold uppercase tracking-[0.16em] ${
                 showFavoritesOnly
                   ? "bg-pink-500 text-white shadow-[0_0_24px_rgba(236,72,153,0.35)]"
                   : "glass border border-white/5 text-neutral-600 hover:text-white hover:border-white/10"
@@ -84,7 +84,7 @@ const MusicBrowseControls = ({
               <button
                 key={g.label}
                 onClick={() => handleGenreClick(idx)}
-                className={`micro-feedback px-4 sm:px-5 py-2.5 rounded-2xl text-[11px] font-semibold uppercase tracking-[0.16em] ${
+                className={`micro-interact px-4 sm:px-5 py-2.5 rounded-2xl text-[11px] font-semibold uppercase tracking-[0.16em] ${
                   activeGenre === idx
                     ? "bg-indigo-500 text-white shadow-[0_0_24px_rgba(99,102,241,0.4)]"
                     : "glass border border-white/5 text-neutral-600 hover:text-white hover:border-white/10"
