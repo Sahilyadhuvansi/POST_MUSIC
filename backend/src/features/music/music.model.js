@@ -24,6 +24,14 @@ const musicSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    playCount: {
+      type: Number,
+      default: 0,
+      index: true,
+    },
+    lastPlayedAt: {
+      type: Date,
+    },
   },
   { timestamps: true },
 );

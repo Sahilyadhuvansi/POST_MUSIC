@@ -27,6 +27,26 @@ export const useMusicBrowser = ({ addToast }) => {
   const debounceRef = useRef(null);
   const abortRef = useRef(null);
 
+  const [recentSearches, setRecentSearches] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("music_recent_searches") || "[]");
+    } catch {
+      return [];
+    }
+  });
+
+  const saveSearch = useCallback((term) => {
+    if (!term || term.length < 3) return;
+    setRecentSearches((prev) => {
+      const filtered = prev.filter(
+        (s) => s.toLowerCase() !== term.toLowerCase(),
+      );
+      const next = [term, ...filtered].slice(0, 6);
+      localStorage.setItem("music_recent_searches", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   const hydrateSavedMap = useCallback(async () => {
     try {
       const res = await api.get("/music/mine");
@@ -154,6 +174,7 @@ export const useMusicBrowser = ({ addToast }) => {
 
         setPlaylistMeta(null);
       } catch (err) {
+        console.error("Search failure:", err);
         if (err.name === "AbortError" || err.name === "CanceledError") return;
         if (err.message === "quota") {
           addToast("YouTube daily quota reached. Try again tomorrow.", "error");
@@ -274,6 +295,7 @@ export const useMusicBrowser = ({ addToast }) => {
     setIsSearching(true);
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
+      saveSearch(searchQuery.trim());
       runSearch(searchQuery.trim());
     }, 500);
 
@@ -388,6 +410,7 @@ export const useMusicBrowser = ({ addToast }) => {
     bollywoodAlbums,
     showFavoritesOnly,
     setShowFavoritesOnly,
+    recentSearches,
     runSearch,
     toggleFavorite,
     handleGenreClick,

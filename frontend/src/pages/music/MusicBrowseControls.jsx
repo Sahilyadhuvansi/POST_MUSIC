@@ -12,6 +12,7 @@ const MusicBrowseControls = ({
   handleGenreClick,
   playlistMeta,
   setPlaylistMeta,
+  recentSearches = [],
   runSearch,
 }) => {
   return (
@@ -30,15 +31,6 @@ const MusicBrowseControls = ({
               Universe
             </span>
           </h1>
-        </div>
-        <div className="relative glass px-6 py-4 sm:px-7 sm:py-4 rounded-3xl border-white/5 text-center w-full md:w-auto min-w-0 md:min-w-[160px] shadow-[0_16px_45px_rgba(0,0,0,0.24)]">
-          <p className="text-[11px] font-semibold text-neutral-600 uppercase tracking-[0.16em] mb-1">
-            Items
-          </p>
-          <p className="text-2xl sm:text-[1.75rem] font-black text-white leading-none">
-            {tracksCount}
-            <span className="text-xs text-indigo-400 ml-1">+</span>
-          </p>
         </div>
       </div>
 
@@ -62,6 +54,25 @@ const MusicBrowseControls = ({
           </button>
         )}
       </div>
+
+      {!isSearching && recentSearches.length > 0 && (
+        <div className="mb-8 px-2">
+          <p className="text-[9px] font-black text-neutral-600 uppercase tracking-widest mb-3">
+            Recent Inquiries
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {recentSearches.map((s) => (
+              <button
+                key={s}
+                onClick={() => setSearchQuery(s)}
+                className="text-[10px] font-bold text-neutral-500 hover:text-white transition-colors"
+              >
+                {s} <span className="text-neutral-800 mx-1">/</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {!isSearching && (
         <div className="mb-10 overflow-x-auto pb-1">

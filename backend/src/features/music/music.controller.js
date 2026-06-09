@@ -185,6 +185,10 @@ const getAllMusics = async (req, res, next) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const sort =
+      req.query.sort === "trending"
+        ? { playCount: -1, createdAt: -1 }
+        : { createdAt: -1 };
     const skip = (page - 1) * limit;
 
     const [musics, total] = await Promise.all([
@@ -192,7 +196,7 @@ const getAllMusics = async (req, res, next) => {
         .find()
         .select("youtubeUrl title thumbnailUrl artist createdAt")
         .populate("artist", "username profilePic")
-        .sort({ createdAt: -1 })
+        .sort(sort)
         .skip(skip)
         .limit(limit)
         .lean(),

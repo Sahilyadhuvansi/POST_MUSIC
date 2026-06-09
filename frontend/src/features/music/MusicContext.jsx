@@ -122,20 +122,12 @@ export const MusicProvider = ({ children }) => {
   useEffect(() => {
     if (isPlaying) {
       if (playerRef.current) {
-        try {
-          playerRef.current.playVideo();
-          startProgressPolling();
-        } catch {
-          // Playback failed
-        }
+        playerRef.current.playVideo?.();
+        startProgressPolling();
       }
     } else {
       if (playerRef.current) {
-        try {
-          playerRef.current.pauseVideo();
-        } catch {
-          // Pause failed
-        }
+        playerRef.current.pauseVideo?.();
       }
       stopProgressPolling();
     }
@@ -144,12 +136,7 @@ export const MusicProvider = ({ children }) => {
   // Sync volume
   useEffect(() => {
     if (playerRef.current) {
-      try {
-        // YouTube API expects 0-100, our state is 0-1
-        playerRef.current.setVolume(volume * 100);
-      } catch {
-        /* ignore */
-      }
+      playerRef.current.setVolume?.(volume * 100);
     }
   }, [volume]);
 

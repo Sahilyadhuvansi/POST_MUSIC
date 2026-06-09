@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useMusic } from "../../features/music/MusicContext";
 import { useLocation } from "react-router-dom";
 import { useToast } from "../../components/ui/Toast";
@@ -47,6 +47,10 @@ const Music = () => {
     }
   }, [location.search, playableVisibleTracks, playTrack]);
 
+  const featuredTrack = useMemo(() => {
+    return visibleTracks.find((t) => !t.isPlaylist) || visibleTracks[0];
+  }, [visibleTracks]);
+
   if (apiKeyMissing) {
     return <ApiKeyRequired />;
   }
@@ -54,6 +58,36 @@ const Music = () => {
   return (
     <div className="min-h-screen pb-32">
       <div className="mx-auto max-w-[1400px] px-6 pt-16">
+        {/* Hero Section */}
+        {!isSearching && !playlistMeta && featuredTrack && (
+          <div className="relative mb-16 h-[400px] w-full overflow-hidden rounded-[40px] group">
+            <img
+              src={featuredTrack.thumbnail}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover opacity-40 blur-sm transition-transform duration-1000 group-hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+            <div className="relative h-full flex flex-col justify-end p-10 sm:p-14">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-500/30 backdrop-blur-md">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400">
+                    Featured Energy
+                  </p>
+                </div>
+              </div>
+              <h2 className="text-4xl sm:text-6xl font-black text-white italic tracking-tighter mb-6 max-w-2xl leading-[0.9]">
+                {featuredTrack.title}
+              </h2>
+              <button
+                onClick={() => playTrack(featuredTrack, playableVisibleTracks)}
+                className="flex items-center gap-3 w-fit px-8 py-4 bg-white text-black rounded-2xl font-black uppercase tracking-widest hover:bg-indigo-400 hover:text-white transition-all transform active:scale-95"
+              >
+                <Play className="w-5 h-5 fill-current" /> Launch Vibe
+              </button>
+            </div>
+          </div>
+        )}
+
         <MusicBrowseControls
           tracksCount={visibleTracks.length}
           searchQuery={searchQuery}
@@ -96,9 +130,6 @@ const Music = () => {
                     {isSearching ? `Search · ${searchQuery}` : activeGenreLabel}
                   </h2>
                 </div>
-                <p className="text-[11px] uppercase tracking-[0.2em] text-neutral-500 font-black">
-                  {visibleTracks.length} items
-                </p>
               </div>
             )}
 
@@ -131,9 +162,6 @@ const Music = () => {
                   <h3 className="text-base font-black text-white">
                     Albums &amp; Playlists
                   </h3>
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-neutral-500 font-black">
-                    {bollywoodAlbums.length} collections
-                  </p>
                 </div>
 
                 <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
