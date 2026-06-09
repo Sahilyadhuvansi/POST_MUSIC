@@ -72,16 +72,9 @@ const MusicCard = ({
         >
           {track.title}
         </h3>
-        <p className="truncate text-xs text-neutral-400">
-          {track.artist?.username || "Unknown Artist"}
-        </p>
       </div>
 
       <div className="pt-3 px-1 flex items-center justify-between">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
-          {isAlbum ? "Collection" : isActive ? "Playing" : "Track"}
-        </span>
-
         {!isAlbum ? (
           <button
             onClick={(e) => {
