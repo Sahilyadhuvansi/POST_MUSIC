@@ -1,9 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import {
-  Play,
-  Music as MusicIcon,
-  User,
-} from "lucide-react";
+import { Play, Music as MusicIcon, User } from "lucide-react";
 
 /**
  * SongCard Component for AI Chat
@@ -30,9 +26,6 @@ export const SongCard = ({ song }) => {
           <h4 className="text-[11px] font-black text-white tracking-widest uppercase truncate italic">
             {song.title}
           </h4>
-          <p className="text-[9px] text-neutral-500 font-bold uppercase tracking-widest mt-1">
-            {song.artist || "Unknown artist"}
-          </p>
         </div>
         <button
           onClick={handlePlay}
@@ -71,5 +64,3 @@ export const EmptyStateCard = ({ message }) => (
     </p>
   </div>
 );
-
-

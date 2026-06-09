@@ -1,50 +1,10 @@
-# 🚀 Node & Build
 node_modules/
+.DS_Store
 dist/
 build/
-.next/
-.vercel/
-
-# Monorepo
-frontend/node_modules/
-backend/node_modules/
-frontend/dist/
-frontend/build/
-
-# 🔐 Environment
-.env*
-!.env.example
-
-# 📦 Logs
-logs/
 *.log
 
-# 📁 Storage
-uploads/
-temp/
-.cache/
-*.tmp
-
-# 🧪 Testing
-coverage/
-
-# 🐳 Docker / Redis
-dump.rdb
-docker-data/
-
-# 🧹 System
-.DS_Store
-Thumbs.db
-
-# 🛠️ IDE
-.vscode/*
-!.vscode/extensions.json
-.idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# 🌐 Local configs
-*.local
+# Local env files
+.env
+.env.local
+.env.development.local

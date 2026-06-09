@@ -11,96 +11,16 @@ import {
   scoreVideo,
 } from "./youtube.helpers";
 
-export const fetchVideoDetailsByIds = async (videoIds, apiKey, signal) => {
-  if (!videoIds.length) return new Map();
-
-  const map = new Map();
-  const idChunks = chunk(videoIds, 50);
-
-  for (const ids of idChunks) {
-    const params = new URLSearchParams({
-      part: "contentDetails,snippet,statistics",
-      id: ids.join(","),
-      maxResults: "50",
-      key: apiKey,
-    });
-
-    const res = await fetch(
-      `https://www.googleapis.com/youtube/v3/videos?${params}`,
-      { signal },
-    );
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      if (res.status === 403) throw new Error("quota");
-      throw new Error(err?.error?.message || `YouTube API error ${res.status}`);
-    }
-
-    const data = await res.json();
-    for (const item of data.items || []) {
-      map.set(item.id, {
-        durationSeconds: parseIso8601DurationToSeconds(
-          item.contentDetails?.duration,
-        ),
-        title: item.snippet?.title || "",
-        channelTitle: item.snippet?.channelTitle || "",
-        channelId: item.snippet?.channelId || "",
-        categoryId: item.snippet?.categoryId || "",
-        liveBroadcastContent: item.snippet?.liveBroadcastContent || "none",
-        viewCount: Number(item.statistics?.viewCount || 0),
-      });
-    }
-  }
-
-  return map;
-};
-
-export const fetchChannelStatsByIds = async (channelIds, apiKey, signal) => {
-  if (!channelIds.length) return new Map();
-
-  const map = new Map();
-  const idChunks = chunk([...new Set(channelIds)], 50);
-
-  for (const ids of idChunks) {
-    const params = new URLSearchParams({
-      part: "statistics,snippet",
-      id: ids.join(","),
-      maxResults: "50",
-      key: apiKey,
-    });
-
-    const res = await fetch(
-      `https://www.googleapis.com/youtube/v3/channels?${params}`,
-      { signal },
-    );
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      if (res.status === 403) throw new Error("quota");
-      throw new Error(err?.error?.message || `YouTube API error ${res.status}`);
-    }
-
-    const data = await res.json();
-    for (const item of data.items || []) {
-      map.set(item.id, {
-        subscriberCount: Number(item.statistics?.subscriberCount || 0),
-        channelTitle: item.snippet?.title || "",
-      });
-    }
-  }
-
-  return map;
-};
-
 export const fetchYouTubeContentFresh = async (term, signal, options = {}) => {
   const API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY;
   const {
     type = "video",
-    maxResults = "30",
+    maxResults = "15",
     order,
     videoCategoryId,
     strictMusicOnly = true,
     enhanceMusicQuery = true,
+    pageToken,
   } = options;
 
   if (!API_KEY) {
@@ -111,13 +31,20 @@ export const fetchYouTubeContentFresh = async (term, signal, options = {}) => {
 
   const effectiveQuery = enhanceMusicQuery ? buildMusicSearchQuery(term) : term;
 
+  // Requirement: Request only required fields to save bandwidth and quota
+  const fields =
+    "nextPageToken,items(id(videoId,playlistId),snippet(title,thumbnails(medium,default),channelTitle,liveBroadcastContent))";
+
   const params = new URLSearchParams({
     part: "snippet",
     q: effectiveQuery,
     type,
     maxResults,
     key: API_KEY,
+    fields,
   });
+
+  if (pageToken) params.set("pageToken", pageToken);
 
   if (order) params.set("order", order);
   if (videoCategoryId) {
@@ -148,19 +75,6 @@ export const fetchYouTubeContentFresh = async (term, signal, options = {}) => {
         : `playlist:${item.id.playlistId}`,
   );
 
-  const videoIds = items.map((item) => item.id?.videoId).filter(Boolean);
-
-  const detailsMap = await fetchVideoDetailsByIds(videoIds, API_KEY, signal);
-  const channelStatsMap = await fetchChannelStatsByIds(
-    [
-      ...new Set(
-        [...detailsMap.values()].map((d) => d.channelId).filter(Boolean),
-      ),
-    ],
-    API_KEY,
-    signal,
-  );
-
   const mappedPlaylists = dedupeByKey(
     items.filter((item) => item.id?.playlistId),
     (item) => item.id.playlistId,
@@ -185,27 +99,9 @@ export const fetchYouTubeContentFresh = async (term, signal, options = {}) => {
     (item) => item.id.videoId,
   )
     .map((item) => {
-      const details = detailsMap.get(item.id.videoId);
-      if (!details) return null;
-
-      const title = details.title || item.snippet?.title || "";
-      const channelStats = channelStatsMap.get(details.channelId) || {
-        subscriberCount: 0,
-      };
-
-      if (isLikelyShortForm(title, details.durationSeconds)) return null;
+      const title = item.snippet?.title || "";
+      if (isLiveOrUpcoming(item.snippet?.liveBroadcastContent)) return null;
       if (isHardExcluded(title)) return null;
-      if (isLiveOrUpcoming(details.liveBroadcastContent)) return null;
-      if (
-        strictMusicOnly &&
-        !isLikelyMusicContent({
-          title,
-          channelTitle: details.channelTitle || item.snippet.channelTitle || "",
-          categoryId: details.categoryId,
-        })
-      ) {
-        return null;
-      }
 
       const thumbnail =
         item.snippet.thumbnails?.high?.url ||
@@ -215,19 +111,14 @@ export const fetchYouTubeContentFresh = async (term, signal, options = {}) => {
       return {
         _id: item.id.videoId,
         title: item.snippet.title,
-        artist: { username: item.snippet.channelTitle },
+        artist: { username: "" }, // Stripped channel name per requirements
         thumbnail,
         youtubeUrl: `https://www.youtube.com/watch?v=${item.id.videoId}`,
         isPlaylist: false,
         _score:
           getMusicRelevanceScore({
             title,
-            channelTitle:
-              details.channelTitle || item.snippet.channelTitle || "",
-            durationSeconds: details.durationSeconds,
-            categoryId: details.categoryId,
-            viewCount: details.viewCount,
-            subscriberCount: channelStats.subscriberCount,
+            channelTitle: item.snippet.channelTitle || "",
           }) +
           scoreVideo({
             title,
@@ -240,5 +131,8 @@ export const fetchYouTubeContentFresh = async (term, signal, options = {}) => {
     .sort((a, b) => b._score - a._score)
     .map(({ _score, ...video }) => video);
 
-  return [...mappedVideos, ...mappedPlaylists];
+  return {
+    tracks: [...mappedVideos, ...mappedPlaylists],
+    nextPageToken: data.nextPageToken || null,
+  };
 };

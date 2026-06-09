@@ -44,7 +44,7 @@ if (process.env.frontend_URL) allowedOrigins.push(process.env.frontend_URL);
 const corsOptions = {
   origin: (origin, cb) => {
     if (!origin) {
-      // In development, we allow Postman/Curl. In production, we restrict it.
+      // In development, we allow API testing tools/Curl. In production, we restrict it.
       if (process.env.NODE_ENV === "development") return cb(null, true);
       return cb(null, false);
     }

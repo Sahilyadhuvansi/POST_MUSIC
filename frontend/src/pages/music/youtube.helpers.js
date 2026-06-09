@@ -98,6 +98,7 @@ export const buildYouTubeCacheKey = (term = "", options = {}) => {
       videoCategoryId: options.videoCategoryId || "music",
       strictMusicOnly: options.strictMusicOnly !== false,
       enhanceMusicQuery: options.enhanceMusicQuery !== false,
+      pageToken: options.pageToken || null,
     }),
   );
 
@@ -145,26 +146,8 @@ export const isLiveOrUpcoming = (liveBroadcastContent = "none") => {
   return liveBroadcastContent === "live" || liveBroadcastContent === "upcoming";
 };
 
-export const getMusicRelevanceScore = ({
-  title = "",
-  channelTitle = "",
-  durationSeconds = 0,
-  categoryId = "",
-  viewCount = 0,
-  subscriberCount = 0,
-}) => {
+export const getMusicRelevanceScore = ({ title = "", channelTitle = "" }) => {
   let score = 0;
-
-  // duration preference: 3-6 min ideal (aligned with 180-360 range)
-  if (durationSeconds >= 180 && durationSeconds <= 360) score += 5;
-  else if (durationSeconds >= 150 && durationSeconds <= 390) score += 3;
-  else if (
-    durationSeconds >= MIN_TRACK_DURATION_SECONDS &&
-    durationSeconds <= MAX_TRACK_DURATION_SECONDS
-  )
-    score += 1;
-
-  if (categoryId === "10") score += 4;
   if (hasMusicIntent(title)) score += 2;
   if (hasMusicIntent(channelTitle)) score += 1;
 
@@ -174,17 +157,6 @@ export const getMusicRelevanceScore = ({
   ) {
     score += 3;
   }
-
-  // prefer high views
-  if (viewCount >= 10_000_000) score += 4;
-  else if (viewCount >= 1_000_000) score += 3;
-  else if (viewCount >= 100_000) score += 2;
-  else if (viewCount >= 10_000) score += 1;
-
-  // channel trust proxy (verified-like preference)
-  if (subscriberCount >= 1_000_000) score += 4;
-  else if (subscriberCount >= 100_000) score += 2;
-  else if (subscriberCount >= 10_000) score += 1;
 
   if (hasKeyword(title, BAD_KEYWORDS)) {
     score -= 5;

@@ -20,6 +20,9 @@ export const useMusicBrowser = ({ addToast }) => {
   const [savedByUrl, setSavedByUrl] = useState({});
   const [bollywoodAlbums, setBollywoodAlbums] = useState([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [nextPageToken, setNextPageToken] = useState(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
 
   const debounceRef = useRef(null);
   const abortRef = useRef(null);
@@ -110,9 +113,12 @@ export const useMusicBrowser = ({ addToast }) => {
       setLoading(true);
       setTracks([]);
       setBollywoodAlbums([]);
+      setNextPageToken(null);
+      setHasMore(true);
+
       try {
         if (showBollywoodSections) {
-          const [songs, albums] = await Promise.all([
+          const [songRes, albumRes] = await Promise.all([
             searchYouTubeContent(term, abortRef.current.signal, {
               type: "video",
               maxResults: "24",
@@ -127,20 +133,21 @@ export const useMusicBrowser = ({ addToast }) => {
             ),
           ]);
 
-          setTracks(songs);
-          setBollywoodAlbums(albums);
+          setTracks(songRes.tracks || []);
+          setBollywoodAlbums(albumRes.tracks || []);
 
-          if (songs.length === 0 && albums.length === 0) {
+          if (!songRes.tracks?.length && !albumRes.tracks?.length) {
             addToast("No results found. Try a different search.", "info");
           }
         } else {
-          const results = await searchYouTubeContent(
+          const response = await searchYouTubeContent(
             term,
             abortRef.current.signal,
-            options,
+            { ...options, maxResults: "20" },
           );
-          setTracks(results);
-          if (results.length === 0) {
+          setTracks(response.tracks || []);
+          setNextPageToken(response.nextPageToken || null);
+          if (!response.tracks?.length) {
             addToast("No results found. Try a different search.", "info");
           }
         }
@@ -161,6 +168,56 @@ export const useMusicBrowser = ({ addToast }) => {
     },
     [addToast],
   );
+
+  const loadMore = useCallback(async () => {
+    if (isLoadingMore || !nextPageToken || !hasMore || showFavoritesOnly)
+      return;
+
+    setIsLoadingMore(true);
+    try {
+      const term = searchQuery.trim() || GENRES[activeGenre].term;
+      const response = await searchYouTubeContent(term, undefined, {
+        type: "video",
+        maxResults: "20",
+        pageToken: nextPageToken,
+      });
+
+      if (response.tracks?.length) {
+        setTracks((prev) => [...prev, ...response.tracks]);
+        setNextPageToken(response.nextPageToken || null);
+      } else {
+        setHasMore(false);
+      }
+    } catch (err) {
+      if (err.message === "quota") {
+        addToast("YouTube quota reached.", "error");
+        setHasMore(false);
+      }
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [
+    isLoadingMore,
+    nextPageToken,
+    hasMore,
+    showFavoritesOnly,
+    searchQuery,
+    activeGenre,
+    addToast,
+  ]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (showFavoritesOnly || isLoadingMore || !nextPageToken) return;
+      const { scrollHeight, scrollTop, clientHeight } =
+        document.documentElement;
+      if (scrollTop + clientHeight >= scrollHeight * 0.85) {
+        loadMore();
+      }
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [loadMore, showFavoritesOnly, isLoadingMore, nextPageToken]);
 
   useEffect(() => {
     runSearch(GENRES[0].term, { type: "video", maxResults: "30" });
@@ -192,7 +249,8 @@ export const useMusicBrowser = ({ addToast }) => {
   }, []);
 
   useEffect(() => {
-    if (!searchQuery.trim()) {
+    const term = searchQuery.trim();
+    if (term.length < 3) {
       if (isSearching) {
         setIsSearching(false);
         const activeLabel = GENRES[activeGenre]?.label;

@@ -195,10 +195,17 @@ exports.moodPlaylist = async (req, res, next) => {
 
 exports.getTrending = async (req, res, next) => {
   try {
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const skip = (page - 1) * limit;
+
     const trending = await Music.find()
-      .sort({ playCount: -1 })
-      .limit(10)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate("artist", "username")
       .lean();
+
     const prompt = SYSTEM_PROMPTS.trendingAnalysis;
     const aiRes = await aiService.chat(
       [

@@ -27,9 +27,6 @@ const ProfileUniverseSection = ({
             </p>
           </div>
         </div>
-        <p className="text-[10px] font-black text-neutral-600 uppercase tracking-[0.3em]">
-          {universe.length} Saved
-        </p>
       </div>
 
       {loadingUniverse ? (
@@ -64,6 +61,7 @@ const ProfileUniverseSection = ({
                   <img
                     src={track.thumbnailUrl}
                     alt=""
+                    loading="lazy"
                     className="h-full w-full object-cover grayscale-[0.3] group-hover:grayscale-0 transition-all duration-700"
                   />
                   <button
@@ -81,9 +79,6 @@ const ProfileUniverseSection = ({
                   <h3 className="text-xs font-black text-white truncate uppercase italic tracking-tight mb-1">
                     {track.title}
                   </h3>
-                  <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest">
-                    Captured Vibe
-                  </p>
                 </div>
                 <button
                   onClick={() => handleDeleteTrack(track._id)}

@@ -27,7 +27,6 @@ const SEARCH_METRICS = {
 };
 const STALE_WHILE_REVALIDATE_MS = 15 * 60 * 1000;
 
-
 const logMetric = (_event, _payload = {}) => {
   // Metric logging placeholder for production health monitoring
 };
@@ -105,7 +104,7 @@ export const searchYouTubeContent = async (term, signal, options = {}) => {
       fresh: true,
       count: cachedState.data.length,
     });
-    return cloneTracks(cachedState.data);
+    return { tracks: cloneTracks(cachedState.data), nextPageToken: null };
   }
 
   if (cachedState?.state === "stale") {
@@ -116,21 +115,21 @@ export const searchYouTubeContent = async (term, signal, options = {}) => {
       count: cachedState.data.length,
     });
     void refreshSearchCache(term, options, cacheKey, undefined);
-    return cloneTracks(cachedState.data);
+    return { tracks: cloneTracks(cachedState.data), nextPageToken: null };
   }
 
   SEARCH_METRICS.misses += 1;
 
   try {
-    const freshResults = await fetchYouTubeContentFresh(term, signal, options);
-    setCacheEntry(cacheKey, freshResults, ttlMs);
-    logMetric("cache_miss", { query: cacheKey, count: freshResults.length });
-    return freshResults;
+    const response = await fetchYouTubeContentFresh(term, signal, options);
+    setCacheEntry(cacheKey, response.tracks, ttlMs);
+    logMetric("cache_miss", { query: cacheKey, count: response.tracks.length });
+    return response;
   } catch (error) {
     if (cachedEntry?.data?.length) {
       SEARCH_METRICS.fallbacks += 1;
       logMetric("fallback", { query: cacheKey, error: error.message });
-      return cloneTracks(cachedEntry.data);
+      return { tracks: cloneTracks(cachedEntry.data), nextPageToken: null };
     }
 
     throw error;
