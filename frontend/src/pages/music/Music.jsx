@@ -36,6 +36,7 @@ const Music = () => {
     playableVisibleTracks,
     isBollywoodView,
     activeGenreLabel,
+    loadMoreRef,
   } = useMusicBrowser({ addToast });
 
   useEffect(() => {
@@ -183,6 +184,15 @@ const Music = () => {
                   ))}
                 </section>
               </>
+            )}
+
+            {/* IntersectionObserver sentinel (load more pagination) */}
+            {!showFavoritesOnly && (
+              <div
+                ref={loadMoreRef}
+                className="h-1 w-full"
+                aria-hidden="true"
+              />
             )}
           </>
         )}

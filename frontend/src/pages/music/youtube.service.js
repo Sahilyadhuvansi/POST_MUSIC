@@ -59,8 +59,12 @@ const getCacheEntryState = (entry, ttlMs) => {
 };
 
 const setCacheEntry = (cacheKey, data, ttlMs) => {
+  // data shape: { tracks, nextPageToken }
   SEARCH_CACHE.set(cacheKey, {
-    data: cloneTracks(data),
+    data: {
+      tracks: cloneTracks(data.tracks),
+      nextPageToken: data.nextPageToken || null,
+    },
     timestamp: Date.now(),
     ttlMs,
   });
@@ -74,7 +78,10 @@ const refreshSearchCache = async (term, options, cacheKey, signal) => {
       const ttlMs = getYouTubeSearchTtlMs(term, options);
       setCacheEntry(cacheKey, freshData, ttlMs);
       SEARCH_METRICS.refreshes += 1;
-      logMetric("refresh", { query: cacheKey, count: freshData.length });
+      logMetric("refresh", {
+        query: cacheKey,
+        count: freshData.tracks?.length || 0,
+      });
       return freshData;
     })
     .catch((error) => {
@@ -102,9 +109,12 @@ export const searchYouTubeContent = async (term, signal, options = {}) => {
     logMetric("cache_hit", {
       query: cacheKey,
       fresh: true,
-      count: cachedState.data.length,
+      count: cachedState.data.tracks.length,
     });
-    return { tracks: cloneTracks(cachedState.data), nextPageToken: null };
+    return {
+      tracks: cloneTracks(cachedState.data.tracks),
+      nextPageToken: cachedState.data.nextPageToken || null,
+    };
   }
 
   if (cachedState?.state === "stale") {
@@ -112,24 +122,30 @@ export const searchYouTubeContent = async (term, signal, options = {}) => {
     logMetric("cache_hit", {
       query: cacheKey,
       fresh: false,
-      count: cachedState.data.length,
+      count: cachedState.data.tracks.length,
     });
     void refreshSearchCache(term, options, cacheKey, undefined);
-    return { tracks: cloneTracks(cachedState.data), nextPageToken: null };
+    return {
+      tracks: cloneTracks(cachedState.data.tracks),
+      nextPageToken: cachedState.data.nextPageToken || null,
+    };
   }
 
   SEARCH_METRICS.misses += 1;
 
   try {
     const response = await fetchYouTubeContentFresh(term, signal, options);
-    setCacheEntry(cacheKey, response.tracks, ttlMs);
+    setCacheEntry(cacheKey, response, ttlMs);
     logMetric("cache_miss", { query: cacheKey, count: response.tracks.length });
     return response;
   } catch (error) {
-    if (cachedEntry?.data?.length) {
+    if (cachedEntry?.data?.tracks?.length) {
       SEARCH_METRICS.fallbacks += 1;
       logMetric("fallback", { query: cacheKey, error: error.message });
-      return { tracks: cloneTracks(cachedEntry.data), nextPageToken: null };
+      return {
+        tracks: cloneTracks(cachedEntry.data.tracks),
+        nextPageToken: cachedEntry.data.nextPageToken || null,
+      };
     }
 
     throw error;

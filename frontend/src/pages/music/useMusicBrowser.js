@@ -26,6 +26,7 @@ export const useMusicBrowser = ({ addToast }) => {
 
   const debounceRef = useRef(null);
   const abortRef = useRef(null);
+  const loadMoreRef = useRef(null);
 
   const [recentSearches, setRecentSearches] = useState(() => {
     try {
@@ -190,55 +191,113 @@ export const useMusicBrowser = ({ addToast }) => {
     [addToast],
   );
 
-  const loadMore = useCallback(async () => {
-    if (isLoadingMore || !nextPageToken || !hasMore || showFavoritesOnly)
-      return;
+  const loadMoreInFlightRef = useRef(false);
+  const lastLoadedTokenRef = useRef(null);
 
+  const loadMore = useCallback(async () => {
+    // Hard bypass: favorites mode must never trigger pagination.
+    if (showFavoritesOnly) return;
+
+    // Hard stop: once hasMore=false, never request again.
+    if (!hasMore) return;
+
+    // Guard against missing token.
+    if (!nextPageToken) return;
+
+    // Prevent duplicate executions while a request is in flight.
+    if (loadMoreInFlightRef.current) return;
+
+    loadMoreInFlightRef.current = true;
     setIsLoadingMore(true);
+
     try {
+      // Stale token guard: avoid re-loading the same pageToken.
+      if (lastLoadedTokenRef.current === nextPageToken) return;
+      lastLoadedTokenRef.current = nextPageToken;
+
       const term = searchQuery.trim() || GENRES[activeGenre].term;
+
       const response = await searchYouTubeContent(term, undefined, {
         type: "video",
         maxResults: "20",
         pageToken: nextPageToken,
       });
 
-      if (response.tracks?.length) {
-        setTracks((prev) => [...prev, ...response.tracks]);
-        setNextPageToken(response.nextPageToken || null);
-      } else {
+      const incoming = Array.isArray(response?.tracks) ? response.tracks : [];
+
+      // Deduplicate insertion across pages (by _id).
+      if (incoming.length > 0) {
+        setTracks((prev) => {
+          const seen = new Set((prev || []).map((t) => t?._id).filter(Boolean));
+          const deduped = incoming.filter(
+            (t) => t && t._id && !seen.has(t._id),
+          );
+          return [...prev, ...deduped];
+        });
+      }
+
+      // nextPageToken: if missing/invalid, stop forever.
+      const nextToken = response?.nextPageToken || null;
+      if (incoming.length === 0 || !nextToken) {
         setHasMore(false);
+        setNextPageToken(null);
+      } else {
+        setNextPageToken(nextToken);
       }
     } catch (err) {
-      if (err.message === "quota") {
+      if (err?.message === "quota") {
         addToast("YouTube quota reached.", "error");
-        setHasMore(false);
       }
+      // On errors, stop to avoid quota blow-ups / retry storms.
+      setHasMore(false);
+      setNextPageToken(null);
     } finally {
+      loadMoreInFlightRef.current = false;
       setIsLoadingMore(false);
     }
   }, [
-    isLoadingMore,
-    nextPageToken,
-    hasMore,
     showFavoritesOnly,
+    hasMore,
+    nextPageToken,
     searchQuery,
     activeGenre,
     addToast,
   ]);
 
   useEffect(() => {
-    const handleScroll = () => {
-      if (showFavoritesOnly || isLoadingMore || !nextPageToken) return;
-      const { scrollHeight, scrollTop, clientHeight } =
-        document.documentElement;
-      if (scrollTop + clientHeight >= scrollHeight * 0.85) {
-        loadMore();
-      }
+    // Ensure observer cleanup on unmount and correct disconnect/reconnect when deps change.
+    const el = loadMoreRef.current;
+    if (!el) return;
+
+    const canObserve =
+      !showFavoritesOnly && hasMore && !isLoadingMore && !!nextPageToken;
+
+    if (!canObserve) return;
+
+    let cancelled = false;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (cancelled) return;
+        const first = entries[0];
+        if (first?.isIntersecting) {
+          loadMore();
+        }
+      },
+      {
+        root: null,
+        rootMargin: "800px 0px",
+        threshold: 0.01,
+      },
+    );
+
+    observer.observe(el);
+
+    return () => {
+      cancelled = true;
+      observer.disconnect();
     };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [loadMore, showFavoritesOnly, isLoadingMore, nextPageToken]);
+  }, [loadMore, showFavoritesOnly, hasMore, isLoadingMore, nextPageToken]);
 
   useEffect(() => {
     runSearch(GENRES[0].term, { type: "video", maxResults: "30" });
@@ -419,5 +478,6 @@ export const useMusicBrowser = ({ addToast }) => {
     playableVisibleTracks,
     isBollywoodView,
     activeGenreLabel,
+    loadMoreRef,
   };
 };
