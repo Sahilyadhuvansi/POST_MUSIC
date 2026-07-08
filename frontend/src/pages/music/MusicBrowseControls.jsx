@@ -77,7 +77,7 @@ const MusicBrowseControls = memo(({
       )}
 
       {!isSearching && (
-        <div className="mb-10 overflow-x-auto pb-1">
+        <div className="mb-10 overflow-x-auto pb-2 -mx-1 px-1" style={{ scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
           <div className="flex w-max min-w-full gap-2" role="group" aria-label="Browse by genre">
             <button
               onClick={() => {

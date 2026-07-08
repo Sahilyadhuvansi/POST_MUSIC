@@ -300,9 +300,59 @@ body::after {
   touch-action: none;
 }
 
-/* Add bottom clearance when mini player is visible */
+/* Bottom clearance for mini player — accounts for device safe area */
 .has-mini-player {
-  padding-bottom: 6rem;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 5.5rem);
+}
+
+/* ── Mobile / Touch optimisations ────────────────────────────────────────── */
+
+/* Prevent double-tap zoom on interactive elements */
+button,
+a,
+input[type="range"] {
+  touch-action: manipulation;
+}
+
+/* Bottom sheet slide-up animation */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@utility animate-slide-up {
+  animation: slide-up 0.36s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Smooth momentum scrolling on iOS */
+.overflow-y-auto,
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Safe-area utilities */
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Tap highlight suppression for custom controls */
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Active-state feedback for touch targets ─────────────────────────────── */
+.micro-interact:active {
+  transform: scale(0.96);
 }
 
 /* Custom Tailwind Utilities */

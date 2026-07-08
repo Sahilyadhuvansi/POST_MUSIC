@@ -119,7 +119,7 @@ const Music = () => {
   const isDnDEnabled = showFavoritesOnly && favoritesSortBy === "custom";
 
   return (
-    <div className="min-h-screen pb-36">
+    <div className="min-h-screen" style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 9rem)" }}>
       {/* pt-24 ensures content clears the fixed header (~80px) on all screen sizes */}
       <div className="mx-auto max-w-[1400px] px-4 sm:px-6 pt-24">
 
