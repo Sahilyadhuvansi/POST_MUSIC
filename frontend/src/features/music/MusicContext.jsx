@@ -42,6 +42,11 @@ export const MusicProvider = ({ children }) => {
   const currentTrack = playlist[currentIndex] || null;
   const videoId = extractVideoId(currentTrack?.youtubeUrl);
 
+  // Reset player ref when video changes to avoid calling methods on an unmounted/destroyed player instance
+  useEffect(() => {
+    playerRef.current = null;
+  }, [videoId]);
+
   const setPlaybackRules = useCallback((patch = {}) => {
     setPlaybackRulesState((prev) => ({ ...prev, ...patch }));
   }, []);
@@ -122,12 +127,20 @@ export const MusicProvider = ({ children }) => {
   useEffect(() => {
     if (isPlaying) {
       if (playerRef.current) {
-        playerRef.current.playVideo?.();
+        try {
+          playerRef.current.playVideo?.();
+        } catch (e) {
+          console.warn("Failed to play video:", e);
+        }
         startProgressPolling();
       }
     } else {
       if (playerRef.current) {
-        playerRef.current.pauseVideo?.();
+        try {
+          playerRef.current.pauseVideo?.();
+        } catch (e) {
+          console.warn("Failed to pause video:", e);
+        }
       }
       stopProgressPolling();
     }
@@ -136,7 +149,11 @@ export const MusicProvider = ({ children }) => {
   // Sync volume
   useEffect(() => {
     if (playerRef.current) {
-      playerRef.current.setVolume?.(volume * 100);
+      try {
+        playerRef.current.setVolume?.(volume * 100);
+      } catch (e) {
+        console.warn("Failed to set volume:", e);
+      }
     }
   }, [volume]);
 

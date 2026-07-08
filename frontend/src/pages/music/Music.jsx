@@ -2,7 +2,7 @@ import { useEffect, useMemo } from "react";
 import { useMusic } from "../../features/music/MusicContext";
 import { useLocation } from "react-router-dom";
 import { useToast } from "../../components/ui/Toast";
-import { Disc } from "lucide-react";
+import { Disc, Play } from "lucide-react";
 import { MusicSkeleton } from "../../components/SkeletonLoader";
 import MusicCard from "./MusicCard";
 import ApiKeyRequired from "./ApiKeyRequired";
