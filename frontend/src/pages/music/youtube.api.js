@@ -10,6 +10,7 @@ import {
   parseIso8601DurationToSeconds,
   scoreVideo,
 } from "./youtube.helpers";
+import { MIN_VIDEO_SCORE } from "./youtube.constants";
 
 export const fetchVideoDetailsByIds = async (videoIds = [], apiKey, signal) => {
   const detailsMap = new Map();
@@ -179,7 +180,8 @@ export const fetchYouTubeContentFresh = async (term, signal, options = {}) => {
     };
   });
 
-  const mappedVideos = dedupeByKey(
+  // --- Phase 1: initial filter from search snippet (no duration yet) ---
+  const preliminaryVideos = dedupeByKey(
     items.filter((item) => item.id?.videoId),
     (item) => item.id.videoId,
   )
@@ -211,7 +213,42 @@ export const fetchYouTubeContentFresh = async (term, signal, options = {}) => {
           }),
       };
     })
-    .filter(Boolean)
+    .filter(Boolean);
+
+  // --- Phase 2: enrich with real video details for duration + category filtering ---
+  // The Search API does not return duration, so a second videos.list call is needed.
+  // This filters Shorts and non-music content that the search API lets through (Req 2 & 3).
+  let enrichedVideos = preliminaryVideos;
+  const videoIds = preliminaryVideos.map((v) => v._id);
+  if (videoIds.length > 0) {
+    try {
+      const detailsMap = await fetchVideoDetailsByIds(videoIds, API_KEY, signal);
+      enrichedVideos = preliminaryVideos
+        .map((video) => {
+          const details = detailsMap.get(video._id);
+          if (!details) return video; // keep if details unavailable (defensive)
+          const resolvedTitle = details.title || video.title;
+          if (isLikelyShortForm(resolvedTitle, details.durationSeconds)) return null;
+          if (
+            !isLikelyMusicContent({
+              title: resolvedTitle,
+              channelTitle: details.channelTitle || "",
+              categoryId: details.categoryId,
+            })
+          )
+            return null;
+          return video;
+        })
+        .filter(Boolean);
+    } catch {
+      // If enrichment fails (e.g. signal aborted), proceed without duration filtering
+      enrichedVideos = preliminaryVideos;
+    }
+  }
+
+  // --- Phase 3: score gate + sort (Req 6) ---
+  const mappedVideos = enrichedVideos
+    .filter((v) => v._score >= MIN_VIDEO_SCORE)
     .sort((a, b) => b._score - a._score)
     .map(({ _score, ...video }) => video);
 

@@ -32,7 +32,15 @@ export const chunk = (items, size) => {
 
 export const hasKeyword = (title = "", keywords = []) => {
   const normalized = title.toLowerCase();
-  return keywords.some((keyword) => normalized.includes(keyword));
+  return keywords.some((keyword) => {
+    if (!keyword.includes(" ")) {
+      // Word-boundary check for single words: prevents "live" matching "believe",
+      // "mix" matching "remix", etc.
+      const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp(`\\b${escaped}\\b`).test(normalized);
+    }
+    return normalized.includes(keyword);
+  });
 };
 
 export const isLikelyShortForm = (title = "", durationSeconds = 0) => {
@@ -60,7 +68,7 @@ export const buildMusicSearchQuery = (term = "") => {
   const normalized = normalizeMusicSearchTerm(term);
   if (!normalized) return normalized;
   if (hasMusicIntent(normalized)) return normalized;
-  return `${normalized} song music official video lyrics audio`;
+  return `${normalized} official music video song`;
 };
 
 export const normalizeMusicSearchTerm = (term = "") => {
@@ -170,7 +178,6 @@ export const getMusicRelevanceScore = ({ title = "", channelTitle = "" }) => {
 };
 
 export const scoreVideo = ({ title = "", channelTitle = "" }) => {
-  const normalizedTitle = title.toLowerCase();
   const normalizedChannel = channelTitle.toLowerCase();
 
   let score = 0;
@@ -179,11 +186,11 @@ export const scoreVideo = ({ title = "", channelTitle = "" }) => {
     score += 3;
   }
 
-  if (MUSIC_INTENT_KEYWORDS.some((k) => normalizedTitle.includes(k))) {
+  if (hasMusicIntent(title)) {
     score += 2;
   }
 
-  if (BAD_KEYWORDS.some((k) => normalizedTitle.includes(k))) {
+  if (hasKeyword(title, BAD_KEYWORDS)) {
     score -= 5;
   }
 

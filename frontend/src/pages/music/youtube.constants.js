@@ -1,6 +1,36 @@
-export const MIN_TRACK_DURATION_SECONDS = 90;
-export const MAX_TRACK_DURATION_SECONDS = 360;
+export const MIN_TRACK_DURATION_SECONDS = 120; // 2 minutes
+export const MAX_TRACK_DURATION_SECONDS = 360; // 6 minutes
 
+// Titles containing these instantly discard the video (no score redemption).
+export const HARD_EXCLUDE_KEYWORDS = [
+  // original
+  "teaser",
+  "trailer",
+  "reaction",
+  "podcast",
+  "interview",
+  "ringtone",
+  "bgm",
+  // moved from SOFT — karaoke is never an official single
+  "karaoke",
+  // compilation / non-single content (Req 4 & 5)
+  "compilation",
+  "full album",
+  "concert",
+  "live concert",
+  "live session",
+  "live performance",
+  "non stop",
+  "nonstop",
+  "mega mix",
+  "dj mix",
+  "jukebox",
+  // promotional / meta noise (Req 5)
+  "promo",
+  "related",
+];
+
+// Title keywords that match Shorts / very short video signals.
 export const SHORT_FORM_KEYWORDS = [
   "#shorts",
   "shorts",
@@ -12,19 +42,10 @@ export const SHORT_FORM_KEYWORDS = [
   "tiktok",
 ];
 
-export const HARD_EXCLUDE_KEYWORDS = [
-  "teaser",
-  "trailer",
-  "reaction",
-  "podcast",
-  "interview",
-  "ringtone",
-  "bgm",
-];
-
+// Each match deducts 3 from the relevance score.
+// Videos can still pass if they score above the minimum gate.
 export const SOFT_QUALITY_PENALTY_KEYWORDS = [
   "cover",
-  "karaoke",
   "slowed",
   "reverb",
   "8d",
@@ -32,6 +53,15 @@ export const SOFT_QUALITY_PENALTY_KEYWORDS = [
   "bass boosted",
   "mashup",
   "fanmade",
+  // demoted from MUSIC_INTENT — lyric videos are deprioritised vs official MVs (Req 8)
+  "lyrics",
+  "lyrical",
+  // live recordings deprioritised vs studio releases
+  "live",
+  // generic "mix" penalised; "remix" is unaffected thanks to word-boundary matching
+  "mix",
+  // album-track listings deprioritised
+  "album",
 ];
 
 export const QUERY_NOISE_KEYWORDS = [
@@ -54,22 +84,22 @@ export const TRENDING_QUERY_KEYWORDS = [
   "top",
 ];
 
+// Channel name fragments that earn +3 to the relevance score (Req 1 & 6).
 export const PREFERRED_CHANNEL_HINTS = [
-  // existing
   "topic",
   "vevo",
   "official",
   "music",
   "records",
 
-  // major labels (global)
+  // major global labels
   "t-series",
   "universal music",
   "warner music",
   "atlantic records",
   "columbia records",
 
-  // indian labels
+  // Indian labels
   "zee music",
   "sony music",
   "saregama",
@@ -78,7 +108,7 @@ export const PREFERRED_CHANNEL_HINTS = [
   "aditya music",
   "lahari music",
 
-  // artist authenticity signals
+  // authenticity signals
   "official artist channel",
   "artist channel",
   "official channel",
@@ -88,23 +118,19 @@ export const PREFERRED_CHANNEL_HINTS = [
   "hd",
 ];
 
+// Title / channel keywords that add +2 to the relevance score.
+// Note: "lyrics", "lyrical", "album", "jukebox", "live" removed — they now carry penalties.
 export const MUSIC_INTENT_KEYWORDS = [
-  // existing
   "song",
   "songs",
   "music",
   "video",
-  "lyrics",
-  "lyrical",
   "audio",
   "official",
   "ost",
   "soundtrack",
   "mv",
-  "jukebox",
-  "album",
 
-  // stronger music intent
   "official video",
   "official audio",
   "full song",
@@ -112,7 +138,6 @@ export const MUSIC_INTENT_KEYWORDS = [
   "audio song",
   "video song",
 
-  // indian-specific
   "bollywood",
   "punjabi",
   "hindi song",
@@ -123,18 +148,14 @@ export const MUSIC_INTENT_KEYWORDS = [
   "sad song",
   "love song",
 
-  // global patterns
   "feat",
   "ft.",
   "remastered",
-  "live",
   "acoustic",
-  "cover",
-
-  // filtering junk
   "explicit",
 ];
 
+// Each match deducts 5 from the relevance score (Req 5 & 8).
 export const BAD_KEYWORDS = [
   "reaction",
   "review",
@@ -148,4 +169,13 @@ export const BAD_KEYWORDS = [
   "meme",
   "dance cover",
   "fan made",
+  // new (Req 5)
+  "playlist",
+  "album songs",
+  "promo video",
+  "related songs",
 ];
+
+// Minimum combined relevance score a video must reach to appear in results (Req 6).
+// Prevents clearly irrelevant videos from passing even when not hard-excluded.
+export const MIN_VIDEO_SCORE = -2;
