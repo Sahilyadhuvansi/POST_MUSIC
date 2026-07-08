@@ -1,28 +1,54 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import api from "../../services/api";
+import { useMusic } from "../../features/music/MusicContext";
 import { GENRES } from "./constants";
 import {
   searchYouTubeContent,
   fetchPlaylistTracks,
   prefetchYouTubeSearches,
 } from "./youtube.service";
-import { normalizeYoutubeUrl } from "../../utils/youtube";
 
 export const useMusicBrowser = ({ addToast }) => {
+  const {
+    savedByUrl,
+    savingFavoriteId,
+    toggleFavorite,
+    getPlayCount,
+  } = useMusic();
+
   const [tracks, setTracks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeGenre, setActiveGenre] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [apiKeyMissing, setApiKeyMissing] = useState(false);
-  const [savingId, setSavingId] = useState(null);
   const [playlistMeta, setPlaylistMeta] = useState(null);
-  const [savedByUrl, setSavedByUrl] = useState({});
   const [bollywoodAlbums, setBollywoodAlbums] = useState([]);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [nextPageToken, setNextPageToken] = useState(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+
+  // ─── Favorites Sort & Order ───────────────────────────────────────────────
+  const [favoritesSortBy, setFavoritesSortBy] = useState(() =>
+    localStorage.getItem("favorites_sort") || "recent",
+  );
+  const [customFavoritesOrder, setCustomFavoritesOrder] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("favorites_custom_order") || "[]");
+    } catch {
+      return [];
+    }
+  });
+
+  const updateSortBy = useCallback((sort) => {
+    setFavoritesSortBy(sort);
+    localStorage.setItem("favorites_sort", sort);
+  }, []);
+
+  const reorderFavorites = useCallback((newOrder) => {
+    setCustomFavoritesOrder(newOrder);
+    localStorage.setItem("favorites_custom_order", JSON.stringify(newOrder));
+  }, []);
 
   const debounceRef = useRef(null);
   const abortRef = useRef(null);
@@ -48,84 +74,6 @@ export const useMusicBrowser = ({ addToast }) => {
     });
   }, []);
 
-  const hydrateSavedMap = useCallback(async () => {
-    try {
-      const res = await api.get("/music/mine");
-      const map = (res.data?.musics || []).reduce((acc, item) => {
-        if (item.youtubeUrl) {
-          const normalizedUrl = normalizeYoutubeUrl(item.youtubeUrl);
-          if (normalizedUrl) {
-            acc[normalizedUrl] = {
-              ...item,
-              youtubeUrl: normalizedUrl,
-              _id: item._id || item.id,
-            };
-          }
-        }
-        return acc;
-      }, {});
-      setSavedByUrl(map);
-    } catch {
-      // Silent fail for guests / auth issues
-    }
-  }, []);
-
-  const toggleFavorite = useCallback(
-    async (track) => {
-      if (!track?.youtubeUrl) return;
-      setSavingId(track._id);
-      try {
-        const normalizedUrl = normalizeYoutubeUrl(track.youtubeUrl);
-        if (!normalizedUrl) {
-          addToast("Invalid track URL", "error");
-          setSavingId(null);
-          return;
-        }
-
-        const existing = savedByUrl[normalizedUrl];
-
-        if (existing?._id) {
-          await api.delete(`/music/${existing._id}`);
-          setSavedByUrl((prev) => {
-            const next = { ...prev };
-            delete next[normalizedUrl];
-            return next;
-          });
-          addToast("Removed from favorites", "info");
-          return;
-        }
-
-        const res = await api.post("/music", {
-          title: track.title,
-          youtubeUrl: normalizedUrl,
-          thumbnailUrl: track.thumbnail,
-        });
-
-        const saved = res.data?.music;
-        if (saved?.youtubeUrl) {
-          const savedNormalizedUrl = normalizeYoutubeUrl(saved.youtubeUrl);
-          if (savedNormalizedUrl) {
-            setSavedByUrl((prev) => ({
-              ...prev,
-              [savedNormalizedUrl]: {
-                ...saved,
-                youtubeUrl: savedNormalizedUrl,
-                _id: saved._id || saved.id,
-              },
-            }));
-          }
-        }
-
-        addToast("Added to favorites", "success");
-      } catch (err) {
-        addToast(err.response?.data?.error || "Failed to save track", "error");
-      } finally {
-        setSavingId(null);
-      }
-    },
-    [addToast, savedByUrl],
-  );
-
   const runSearch = useCallback(
     async (term, options = {}) => {
       const { showBollywoodSections = false } = options;
@@ -147,16 +95,11 @@ export const useMusicBrowser = ({ addToast }) => {
             searchYouTubeContent(
               "bollywood full album playlist jukebox",
               abortRef.current.signal,
-              {
-                type: "playlist",
-                maxResults: "12",
-              },
+              { type: "playlist", maxResults: "12" },
             ),
           ]);
-
           setTracks(songRes.tracks || []);
           setBollywoodAlbums(albumRes.tracks || []);
-
           if (!songRes.tracks?.length && !albumRes.tracks?.length) {
             addToast("No results found. Try a different search.", "info");
           }
@@ -172,10 +115,8 @@ export const useMusicBrowser = ({ addToast }) => {
             addToast("No results found. Try a different search.", "info");
           }
         }
-
         setPlaylistMeta(null);
       } catch (err) {
-        console.error("Search failure:", err);
         if (err.name === "AbortError" || err.name === "CanceledError") return;
         if (err.message === "quota") {
           addToast("YouTube daily quota reached. Try again tomorrow.", "error");
@@ -195,28 +136,19 @@ export const useMusicBrowser = ({ addToast }) => {
   const lastLoadedTokenRef = useRef(null);
 
   const loadMore = useCallback(async () => {
-    // Hard bypass: favorites mode must never trigger pagination.
     if (showFavoritesOnly) return;
-
-    // Hard stop: once hasMore=false, never request again.
     if (!hasMore) return;
-
-    // Guard against missing token.
     if (!nextPageToken) return;
-
-    // Prevent duplicate executions while a request is in flight.
     if (loadMoreInFlightRef.current) return;
 
     loadMoreInFlightRef.current = true;
     setIsLoadingMore(true);
 
     try {
-      // Stale token guard: avoid re-loading the same pageToken.
       if (lastLoadedTokenRef.current === nextPageToken) return;
       lastLoadedTokenRef.current = nextPageToken;
 
       const term = searchQuery.trim() || GENRES[activeGenre].term;
-
       const response = await searchYouTubeContent(term, undefined, {
         type: "video",
         maxResults: "20",
@@ -225,7 +157,6 @@ export const useMusicBrowser = ({ addToast }) => {
 
       const incoming = Array.isArray(response?.tracks) ? response.tracks : [];
 
-      // Deduplicate insertion across pages (by _id).
       if (incoming.length > 0) {
         setTracks((prev) => {
           const seen = new Set((prev || []).map((t) => t?._id).filter(Boolean));
@@ -236,7 +167,6 @@ export const useMusicBrowser = ({ addToast }) => {
         });
       }
 
-      // nextPageToken: if missing/invalid, stop forever.
       const nextToken = response?.nextPageToken || null;
       if (incoming.length === 0 || !nextToken) {
         setHasMore(false);
@@ -245,54 +175,31 @@ export const useMusicBrowser = ({ addToast }) => {
         setNextPageToken(nextToken);
       }
     } catch (err) {
-      if (err?.message === "quota") {
-        addToast("YouTube quota reached.", "error");
-      }
-      // On errors, stop to avoid quota blow-ups / retry storms.
+      if (err?.message === "quota") addToast("YouTube quota reached.", "error");
       setHasMore(false);
       setNextPageToken(null);
     } finally {
       loadMoreInFlightRef.current = false;
       setIsLoadingMore(false);
     }
-  }, [
-    showFavoritesOnly,
-    hasMore,
-    nextPageToken,
-    searchQuery,
-    activeGenre,
-    addToast,
-  ]);
+  }, [showFavoritesOnly, hasMore, nextPageToken, searchQuery, activeGenre, addToast]);
 
   useEffect(() => {
-    // Ensure observer cleanup on unmount and correct disconnect/reconnect when deps change.
     const el = loadMoreRef.current;
     if (!el) return;
-
     const canObserve =
       !showFavoritesOnly && hasMore && !isLoadingMore && !!nextPageToken;
-
     if (!canObserve) return;
 
     let cancelled = false;
-
     const observer = new IntersectionObserver(
       (entries) => {
         if (cancelled) return;
-        const first = entries[0];
-        if (first?.isIntersecting) {
-          loadMore();
-        }
+        if (entries[0]?.isIntersecting) loadMore();
       },
-      {
-        root: null,
-        rootMargin: "800px 0px",
-        threshold: 0.01,
-      },
+      { root: null, rootMargin: "800px 0px", threshold: 0.01 },
     );
-
     observer.observe(el);
-
     return () => {
       cancelled = true;
       observer.disconnect();
@@ -301,21 +208,19 @@ export const useMusicBrowser = ({ addToast }) => {
 
   useEffect(() => {
     runSearch(GENRES[0].term, { type: "video", maxResults: "30" });
-    hydrateSavedMap();
 
     if (import.meta.env.VITE_YOUTUBE_API_KEY) {
       const hotQueries = [
         GENRES[0]?.term,
-        GENRES.find((genre) => genre.label === "Trending")?.term,
+        GENRES.find((g) => g.label === "Trending")?.term,
         "bollywood music",
         "trending music",
       ].filter(Boolean);
 
       const timer = setTimeout(() => {
-        prefetchYouTubeSearches(hotQueries, {
-          type: "video",
-          maxResults: "24",
-        }).catch(() => {});
+        prefetchYouTubeSearches(hotQueries, { type: "video", maxResults: "24" }).catch(
+          () => {},
+        );
       }, 0);
 
       return () => {
@@ -333,17 +238,11 @@ export const useMusicBrowser = ({ addToast }) => {
     if (term.length < 3) {
       if (isSearching) {
         setIsSearching(false);
-        const activeLabel = GENRES[activeGenre]?.label;
-        const isTrending = activeLabel === "Trending";
-        const isBollywood = activeLabel === "Bollywood";
-
-        if (isBollywood) {
+        const label = GENRES[activeGenre]?.label;
+        if (label === "Bollywood") {
           runSearch(GENRES[activeGenre].term, { showBollywoodSections: true });
-        } else if (isTrending) {
-          runSearch(GENRES[activeGenre].term, {
-            type: "video",
-            maxResults: "30",
-          });
+        } else if (label === "Trending") {
+          runSearch(GENRES[activeGenre].term, { type: "video", maxResults: "30" });
         } else {
           runSearch(GENRES[activeGenre].term);
         }
@@ -415,24 +314,47 @@ export const useMusicBrowser = ({ addToast }) => {
     [addToast],
   );
 
-  const favoriteTracks = useMemo(
-    () =>
-      Object.values(savedByUrl).map((item) => ({
-        _id: item._id || `fav_${item.youtubeUrl}`,
-        title: item.title,
-        artist: {
-          username:
-            item.artist?.username ||
-            item.artist?.name ||
-            item.artistName ||
-            "Saved",
-        },
-        thumbnail: item.thumbnailUrl || item.thumbnail,
-        youtubeUrl: item.youtubeUrl,
-        isPlaylist: false,
-      })),
-    [savedByUrl],
-  );
+  // ─── Favorites list — sorted & ordered ────────────────────────────────────
+  const favoriteTracks = useMemo(() => {
+    const items = Object.values(savedByUrl).map((item) => ({
+      _id: item._id || `fav_${item.youtubeUrl}`,
+      title: item.title,
+      artist: {
+        username:
+          item.artist?.username || item.artist?.name || item.artistName || "Saved",
+      },
+      thumbnail: item.thumbnailUrl || item.thumbnail,
+      youtubeUrl: item.youtubeUrl,
+      isPlaylist: false,
+    }));
+
+    if (favoritesSortBy === "name") {
+      return [...items].sort((a, b) =>
+        (a.title || "").localeCompare(b.title || ""),
+      );
+    }
+    if (favoritesSortBy === "artist") {
+      return [...items].sort((a, b) =>
+        (a.artist?.username || "").localeCompare(b.artist?.username || ""),
+      );
+    }
+    if (favoritesSortBy === "most_played") {
+      return [...items].sort(
+        (a, b) => getPlayCount(b.youtubeUrl) - getPlayCount(a.youtubeUrl),
+      );
+    }
+    if (favoritesSortBy === "custom" && customFavoritesOrder.length > 0) {
+      const orderMap = Object.fromEntries(
+        customFavoritesOrder.map((id, idx) => [id, idx]),
+      );
+      return [...items].sort(
+        (a, b) =>
+          (orderMap[a._id] ?? 999) - (orderMap[b._id] ?? 999),
+      );
+    }
+    // 'recent' — default insertion order
+    return items;
+  }, [savedByUrl, favoritesSortBy, customFavoritesOrder, getPlayCount]);
 
   const visibleTracks = useMemo(
     () => (showFavoritesOnly ? favoriteTracks : tracks),
@@ -462,16 +384,17 @@ export const useMusicBrowser = ({ addToast }) => {
     setSearchQuery,
     isSearching,
     apiKeyMissing,
-    savingId,
+    // favorites (from context)
+    savedByUrl,
+    savingId: savingFavoriteId,
+    toggleFavorite,
     playlistMeta,
     setPlaylistMeta,
-    savedByUrl,
     bollywoodAlbums,
     showFavoritesOnly,
     setShowFavoritesOnly,
     recentSearches,
     runSearch,
-    toggleFavorite,
     handleGenreClick,
     handleOpenPlaylist,
     visibleTracks,
@@ -479,5 +402,11 @@ export const useMusicBrowser = ({ addToast }) => {
     isBollywoodView,
     activeGenreLabel,
     loadMoreRef,
+    // favorites sort & order
+    favoritesSortBy,
+    setFavoritesSortBy: updateSortBy,
+    reorderFavorites,
+    customFavoritesOrder,
+    favoriteTracks,
   };
 };

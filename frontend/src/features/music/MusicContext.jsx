@@ -10,6 +10,7 @@ import {
 } from "react";
 import YouTube from "react-youtube";
 import { normalizeYoutubeUrl } from "../../utils/youtube";
+import api from "../../services/api";
 
 const MusicContext = createContext(null);
 
@@ -37,12 +38,15 @@ export const MusicProvider = ({ children }) => {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
 
+  // ─── Favorites State ──────────────────────────────────────────────────────
+  const [savedByUrl, setSavedByUrl] = useState({});
+  const [savingFavoriteId, setSavingFavoriteId] = useState(null);
+
   const playerRef = useRef(null);
   const progressIntervalRef = useRef(null);
   const currentTrack = playlist[currentIndex] || null;
   const videoId = extractVideoId(currentTrack?.youtubeUrl);
 
-  // Reset player ref when video changes to avoid calling methods on an unmounted/destroyed player instance
   useEffect(() => {
     playerRef.current = null;
   }, [videoId]);
@@ -56,30 +60,132 @@ export const MusicProvider = ({ children }) => {
       if (!track) return false;
       const title = (track.title || "").toLowerCase();
 
-      if (playbackRules.noRemixes && /\bremix\b/.test(title)) {
-        return false;
-      }
+      if (playbackRules.noRemixes && /\bremix\b/.test(title)) return false;
 
       if (
         playbackRules.slowOnly &&
         /\b(remix|edm|hard|trap|phonk)\b/.test(title)
-      ) {
+      )
         return false;
-      }
 
       if (
         playbackRules.maxDurationMinutes &&
         Number.isFinite(track.durationSeconds) &&
         track.durationSeconds > playbackRules.maxDurationMinutes * 60
-      ) {
+      )
         return false;
-      }
 
       return true;
     },
     [playbackRules],
   );
 
+  // ─── Favorites API ────────────────────────────────────────────────────────
+  const hydrateFavorites = useCallback(async () => {
+    try {
+      const res = await api.get("/music/mine");
+      const map = (res.data?.musics || []).reduce((acc, item) => {
+        if (item.youtubeUrl) {
+          const url = normalizeYoutubeUrl(item.youtubeUrl);
+          if (url)
+            acc[url] = { ...item, youtubeUrl: url, _id: item._id || item.id };
+        }
+        return acc;
+      }, {});
+      setSavedByUrl(map);
+    } catch {
+      // Silent fail for guests / auth issues
+    }
+  }, []);
+
+  useEffect(() => {
+    hydrateFavorites();
+  }, [hydrateFavorites]);
+
+  const toggleFavorite = useCallback(
+    async (track) => {
+      if (!track?.youtubeUrl) return;
+      setSavingFavoriteId(track._id);
+      try {
+        const url = normalizeYoutubeUrl(track.youtubeUrl);
+        if (!url) {
+          setSavingFavoriteId(null);
+          return;
+        }
+        const existing = savedByUrl[url];
+        if (existing?._id) {
+          await api.delete(`/music/${existing._id}`);
+          setSavedByUrl((prev) => {
+            const next = { ...prev };
+            delete next[url];
+            return next;
+          });
+        } else {
+          const res = await api.post("/music", {
+            title: track.title,
+            youtubeUrl: url,
+            thumbnailUrl: track.thumbnail || track.thumbnailUrl,
+          });
+          const saved = res.data?.music;
+          if (saved?.youtubeUrl) {
+            const savedUrl = normalizeYoutubeUrl(saved.youtubeUrl);
+            if (savedUrl) {
+              setSavedByUrl((prev) => ({
+                ...prev,
+                [savedUrl]: {
+                  ...saved,
+                  youtubeUrl: savedUrl,
+                  _id: saved._id || saved.id,
+                },
+              }));
+            }
+          }
+        }
+      } catch {
+        // Silent fail
+      } finally {
+        setSavingFavoriteId(null);
+      }
+    },
+    [savedByUrl],
+  );
+
+  const isTrackFavorited = useCallback(
+    (track) => {
+      if (!track?.youtubeUrl) return false;
+      const url = normalizeYoutubeUrl(track.youtubeUrl);
+      return url ? !!savedByUrl[url] : false;
+    },
+    [savedByUrl],
+  );
+
+  // ─── Play Count Tracking ──────────────────────────────────────────────────
+  const incrementPlayCount = useCallback((track) => {
+    if (!track?.youtubeUrl) return;
+    try {
+      const counts = JSON.parse(
+        localStorage.getItem("music_play_counts") || "{}",
+      );
+      counts[track.youtubeUrl] = (counts[track.youtubeUrl] || 0) + 1;
+      localStorage.setItem("music_play_counts", JSON.stringify(counts));
+    } catch {
+      // silent
+    }
+  }, []);
+
+  const getPlayCount = useCallback((youtubeUrl) => {
+    if (!youtubeUrl) return 0;
+    try {
+      const counts = JSON.parse(
+        localStorage.getItem("music_play_counts") || "{}",
+      );
+      return counts[youtubeUrl] || 0;
+    } catch {
+      return 0;
+    }
+  }, []);
+
+  // ─── Player Core ─────────────────────────────────────────────────────────
   const getCurrentTime = useCallback(async () => {
     const player = playerRef.current;
     if (!player) return 0;
@@ -96,11 +202,10 @@ export const MusicProvider = ({ children }) => {
     try {
       player.seekTo(seconds, true);
     } catch {
-      // Seek failed silenty to prevent UI interruption
+      // Seek failed silently
     }
   }, []);
 
-  // ─── Playback Progress Polling ────────────────────────────────────────────
   const startProgressPolling = useCallback(() => {
     if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
     progressIntervalRef.current = setInterval(async () => {
@@ -111,7 +216,7 @@ export const MusicProvider = ({ children }) => {
           setProgress((currentTime / duration) * 100);
         }
       } catch {
-        // Ignore errors if player is not ready
+        // Ignore errors
       }
     }, 1000);
   }, [duration]);
@@ -123,7 +228,6 @@ export const MusicProvider = ({ children }) => {
     }
   }, []);
 
-  // Sync isPlaying with React-YouTube and polling
   useEffect(() => {
     if (isPlaying) {
       if (playerRef.current) {
@@ -146,7 +250,6 @@ export const MusicProvider = ({ children }) => {
     }
   }, [isPlaying, startProgressPolling, stopProgressPolling]);
 
-  // Sync volume
   useEffect(() => {
     if (playerRef.current) {
       try {
@@ -157,12 +260,10 @@ export const MusicProvider = ({ children }) => {
     }
   }, [volume]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => stopProgressPolling();
   }, [stopProgressPolling]);
 
-  // ─── Toggle Play/Pause ────────────────────────────────────────────────────
   const togglePlay = useCallback(() => {
     if (!currentTrack) return;
     setIsPlaying((p) => !p);
@@ -178,7 +279,6 @@ export const MusicProvider = ({ children }) => {
     setIsPlaying(true);
   }, [currentTrack]);
 
-  // ─── Play a Track ─────────────────────────────────────────────────────────
   const playTrack = useCallback(
     (track, newPlaylist) => {
       if (!track?._id) return;
@@ -206,11 +306,11 @@ export const MusicProvider = ({ children }) => {
       setDuration(0);
       setIsPlaying(true);
       localStorage.setItem("playerVolume", String(volume));
+      incrementPlayCount(track);
     },
-    [currentIndex, playlist, togglePlay, volume],
+    [currentIndex, playlist, togglePlay, volume, incrementPlayCount],
   );
 
-  // ─── Skip Next / Previous ────────────────────────────────────────────────
   const playNext = useCallback(
     (forceAdvance = false) => {
       if (!playlist.length) return;
@@ -258,8 +358,16 @@ export const MusicProvider = ({ children }) => {
       setProgress(0);
       setDuration(0);
       setIsPlaying(true);
+      if (playlist[next]) incrementPlayCount(playlist[next]);
     },
-    [currentIndex, isAllowedByRules, playlist, repeatMode, shuffleEnabled],
+    [
+      currentIndex,
+      isAllowedByRules,
+      playlist,
+      repeatMode,
+      shuffleEnabled,
+      incrementPlayCount,
+    ],
   );
 
   const playPrevious = useCallback(async () => {
@@ -274,9 +382,15 @@ export const MusicProvider = ({ children }) => {
     setProgress(0);
     setDuration(0);
     setIsPlaying(true);
-  }, [currentIndex, getCurrentTime, playlist, setCurrentTime]);
+    if (playlist[prev]) incrementPlayCount(playlist[prev]);
+  }, [
+    currentIndex,
+    getCurrentTime,
+    playlist,
+    setCurrentTime,
+    incrementPlayCount,
+  ]);
 
-  // ─── Seek ─────────────────────────────────────────────────────────────────
   const seek = useCallback(
     (value) => {
       const numeric = Number(value);
@@ -324,42 +438,44 @@ export const MusicProvider = ({ children }) => {
     [currentIndex],
   );
 
-  const onPlayerReady = useCallback(async (event) => {
-    playerRef.current = event.target;
-    playerRef.current.setVolume(volume * 100);
-    if (isPlaying) {
-      playerRef.current.playVideo();
-      startProgressPolling();
-    }
-    try {
-      const d = await event.target.getDuration();
-      setDuration(d);
-    } catch {
-      // Could not get duration
-    }
-  }, [volume, isPlaying, startProgressPolling]);
-
-  const onPlayerStateChange = useCallback(async (event) => {
-    // YT.PlayerState: PLAYING (1), PAUSED (2), ENDED (0)
-    if (event.data === 1) {
-      // Playing
-      setIsPlaying(true);
-      startProgressPolling();
+  const onPlayerReady = useCallback(
+    async (event) => {
+      playerRef.current = event.target;
+      playerRef.current.setVolume(volume * 100);
+      if (isPlaying) {
+        playerRef.current.playVideo();
+        startProgressPolling();
+      }
       try {
         const d = await event.target.getDuration();
-        if (d > 0 && d !== duration) setDuration(d);
+        setDuration(d);
       } catch {
-        // Duration fetch can fail for some tracks before player metadata is ready
+        // Could not get duration
       }
-    } else if (event.data === 2) {
-      // Paused
-      setIsPlaying(false);
-      stopProgressPolling();
-    } else if (event.data === 0) {
-      // Ended
-      playNext();
-    }
-  }, [duration, startProgressPolling, stopProgressPolling, playNext]);
+    },
+    [volume, isPlaying, startProgressPolling],
+  );
+
+  const onPlayerStateChange = useCallback(
+    async (event) => {
+      if (event.data === 1) {
+        setIsPlaying(true);
+        startProgressPolling();
+        try {
+          const d = await event.target.getDuration();
+          if (d > 0 && d !== duration) setDuration(d);
+        } catch {
+          // Duration fetch can fail
+        }
+      } else if (event.data === 2) {
+        setIsPlaying(false);
+        stopProgressPolling();
+      } else if (event.data === 0) {
+        playNext();
+      }
+    },
+    [duration, startProgressPolling, stopProgressPolling, playNext],
+  );
 
   return (
     <MusicContext.Provider
@@ -387,11 +503,18 @@ export const MusicProvider = ({ children }) => {
         setShuffleEnabled,
         playbackRules,
         setPlaybackRules,
+        // Favorites
+        savedByUrl,
+        savingFavoriteId,
+        toggleFavorite,
+        isTrackFavorited,
+        refreshFavorites: hydrateFavorites,
+        // Play counts
+        getPlayCount,
       }}
     >
       {children}
 
-      {/* Background audio engine — positioned within the visible viewport but visually hidden */}
       {videoId && (
         <div
           style={{
@@ -422,7 +545,7 @@ export const MusicProvider = ({ children }) => {
             }}
             onReady={onPlayerReady}
             onStateChange={onPlayerStateChange}
-            onError={(_) => {
+            onError={() => {
               playNext();
             }}
           />

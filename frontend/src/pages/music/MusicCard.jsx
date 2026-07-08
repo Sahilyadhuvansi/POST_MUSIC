@@ -1,5 +1,6 @@
 import React from "react";
 import { Play, Pause, ListMusic, Heart, Zap } from "lucide-react";
+import { useMusic } from "../../features/music/MusicContext";
 
 const MusicCard = React.memo(
   ({
@@ -9,12 +10,18 @@ const MusicCard = React.memo(
     playTrack,
     playableTracks,
     handleOpenPlaylist,
-    savedByUrl,
-    savingId,
-    toggleFavorite,
     forceAlbum = false,
     accent = "indigo",
+    // drag-and-drop props (optional)
+    draggable,
+    onDragStart,
+    onDragOver,
+    onDrop,
+    onDragEnd,
+    isDragOver,
   }) => {
+    const { savedByUrl, savingFavoriteId, toggleFavorite } = useMusic();
+
     const isActive = currentTrack?._id === track._id;
     const isAlbum = forceAlbum || !!track.isPlaylist;
     const isSaved = !!savedByUrl[track.youtubeUrl];
@@ -27,10 +34,17 @@ const MusicCard = React.memo(
     return (
       <article
         className={`group rounded-[24px] border p-3 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform ${
+          isDragOver ? "border-indigo-500/60 bg-indigo-500/10 scale-[1.02]" : ""
+        } ${
           isActive
             ? "border-indigo-500/40 bg-gradient-to-b from-indigo-500/14 to-white/[0.03] shadow-[0_22px_60px_rgba(79,70,229,0.24)]"
             : "border-white/10 bg-gradient-to-b from-white/[0.045] to-white/[0.02] hover:-translate-y-1 hover:border-white/20 hover:shadow-[0_18px_50px_rgba(0,0,0,0.26)]"
         }`}
+        draggable={draggable}
+        onDragStart={onDragStart}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+        onDragEnd={onDragEnd}
       >
         <button
           onClick={() => {
@@ -87,7 +101,7 @@ const MusicCard = React.memo(
                 e.stopPropagation();
                 toggleFavorite(track);
               }}
-              disabled={savingId === track._id}
+              disabled={savingFavoriteId === track._id}
               className={`micro-interact h-8 w-8 rounded-full border flex items-center justify-center disabled:opacity-50 ${
                 isSaved
                   ? "border-pink-500/50 bg-pink-500/20 text-pink-300 shadow-[0_10px_24px_rgba(236,72,153,0.18)]"
@@ -95,12 +109,10 @@ const MusicCard = React.memo(
               }`}
               title={isSaved ? "Remove from favorites" : "Add to favorites"}
             >
-              {savingId === track._id ? (
+              {savingFavoriteId === track._id ? (
                 <div className="w-3.5 h-3.5 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
               ) : (
-                <Heart
-                  className={`w-3.5 h-3.5 ${isSaved ? "fill-current" : ""}`}
-                />
+                <Heart className={`w-3.5 h-3.5 ${isSaved ? "fill-current" : ""}`} />
               )}
             </button>
           ) : (
@@ -110,6 +122,19 @@ const MusicCard = React.memo(
             >
               Open
             </button>
+          )}
+
+          {draggable && (
+            <div className="text-neutral-600 cursor-grab active:cursor-grabbing select-none px-1">
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                <circle cx="5" cy="4" r="1.2" />
+                <circle cx="11" cy="4" r="1.2" />
+                <circle cx="5" cy="8" r="1.2" />
+                <circle cx="11" cy="8" r="1.2" />
+                <circle cx="5" cy="12" r="1.2" />
+                <circle cx="11" cy="12" r="1.2" />
+              </svg>
+            </div>
           )}
         </div>
       </article>

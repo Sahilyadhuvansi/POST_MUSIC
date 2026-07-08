@@ -300,6 +300,11 @@ body::after {
   touch-action: none;
 }
 
+/* Add bottom clearance when mini player is visible */
+.has-mini-player {
+  padding-bottom: 6rem;
+}
+
 /* Custom Tailwind Utilities */
 @keyframes spin {
   to {
