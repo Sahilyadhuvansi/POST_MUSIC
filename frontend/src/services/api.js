@@ -1,19 +1,11 @@
-"use strict";
-
 import axios from "axios";
 import { API_URL } from "../config";
-
-/**
- * Centralized API Layer
- * Configured with baseURL, withCredentials, and global interceptors
- */
-
 import analytics from "./analytics";
 
 export const api = axios.create({
   baseURL: `${API_URL}/api`,
-  withCredentials: false, 
-  timeout: 60000, 
+  withCredentials: false,
+  timeout: 15000,
 });
 
 // Request Interceptor: Attach JWT Token & Tracking

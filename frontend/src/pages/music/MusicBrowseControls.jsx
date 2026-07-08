@@ -1,7 +1,8 @@
+import { memo } from "react";
 import { ArrowLeft, Search } from "lucide-react";
 import { GENRES } from "./constants";
 
-const MusicBrowseControls = ({
+const MusicBrowseControls = memo(({
   tracksCount,
   searchQuery,
   setSearchQuery,
@@ -43,6 +44,7 @@ const MusicBrowseControls = ({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search Bollywood, pop, artist, song name…"
+          aria-label="Search for music"
           className="w-full glass rounded-3xl border border-white/5 bg-white/[0.03] pl-14 pr-6 py-4 sm:py-5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-indigo-500/50 transition-all duration-300 focus:shadow-[0_14px_40px_rgba(99,102,241,0.2)]"
         />
         {searchQuery && (
@@ -76,7 +78,7 @@ const MusicBrowseControls = ({
 
       {!isSearching && (
         <div className="mb-10 overflow-x-auto pb-1">
-          <div className="flex w-max min-w-full gap-2">
+          <div className="flex w-max min-w-full gap-2" role="group" aria-label="Browse by genre">
             <button
               onClick={() => {
                 setShowFavoritesOnly((prev) => !prev);
@@ -138,6 +140,6 @@ const MusicBrowseControls = ({
       )}
     </>
   );
-};
+});
 
 export default MusicBrowseControls;

@@ -130,7 +130,7 @@ export const MusicProvider = ({ children }) => {
         try {
           playerRef.current.playVideo?.();
         } catch (e) {
-          console.warn("Failed to play video:", e);
+          if (import.meta.env.DEV) console.warn("Failed to play video:", e);
         }
         startProgressPolling();
       }
@@ -139,7 +139,7 @@ export const MusicProvider = ({ children }) => {
         try {
           playerRef.current.pauseVideo?.();
         } catch (e) {
-          console.warn("Failed to pause video:", e);
+          if (import.meta.env.DEV) console.warn("Failed to pause video:", e);
         }
       }
       stopProgressPolling();
@@ -152,7 +152,7 @@ export const MusicProvider = ({ children }) => {
       try {
         playerRef.current.setVolume?.(volume * 100);
       } catch (e) {
-        console.warn("Failed to set volume:", e);
+        if (import.meta.env.DEV) console.warn("Failed to set volume:", e);
       }
     }
   }, [volume]);
@@ -324,7 +324,7 @@ export const MusicProvider = ({ children }) => {
     [currentIndex],
   );
 
-  const onPlayerReady = async (event) => {
+  const onPlayerReady = useCallback(async (event) => {
     playerRef.current = event.target;
     playerRef.current.setVolume(volume * 100);
     if (isPlaying) {
@@ -337,9 +337,9 @@ export const MusicProvider = ({ children }) => {
     } catch {
       // Could not get duration
     }
-  };
+  }, [volume, isPlaying, startProgressPolling]);
 
-  const onPlayerStateChange = async (event) => {
+  const onPlayerStateChange = useCallback(async (event) => {
     // YT.PlayerState: PLAYING (1), PAUSED (2), ENDED (0)
     if (event.data === 1) {
       // Playing
@@ -359,7 +359,7 @@ export const MusicProvider = ({ children }) => {
       // Ended
       playNext();
     }
-  };
+  }, [duration, startProgressPolling, stopProgressPolling, playNext]);
 
   return (
     <MusicContext.Provider

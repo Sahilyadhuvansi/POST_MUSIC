@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Sparkles,
   Music,
@@ -19,18 +19,23 @@ const AINexus = () => {
   const [mood, setMood] = useState("");
   const { addToast } = useToast();
   const { playTrack } = useMusic();
+  const abortRef = useRef(null);
 
   const fetchRecommendations = useCallback(async () => {
+    if (abortRef.current) abortRef.current.abort();
+    abortRef.current = new AbortController();
     try {
       setLoading(true);
       const response = await api.get("/ai/recommendations", {
         params: { limit: 10, mood: mood || undefined },
+        signal: abortRef.current.signal,
       });
 
       if (response.data.success) {
         setRecommendations(response.data.data);
       }
     } catch (error) {
+      if (error.name === "AbortError" || error.name === "CanceledError") return;
       addToast(
         error.response?.data?.error ||
           "AI uplink failed. Could not sync with Nexus.",
@@ -43,9 +48,10 @@ const AINexus = () => {
 
   useEffect(() => {
     fetchRecommendations();
+    return () => abortRef.current?.abort();
   }, [fetchRecommendations]);
 
-  const moods = [
+  const moods = useMemo(() => [
     { id: "chill", label: "Equilibrium", icon: <Radio className="w-4 h-4" /> },
     { id: "energetic", label: "Hyperdrive", icon: <Zap className="w-4 h-4" /> },
     {
@@ -59,7 +65,7 @@ const AINexus = () => {
       label: "Melancholy",
       icon: <Headphones className="w-4 h-4" />,
     },
-  ];
+  ], []);
 
   return (
     <div className="mx-auto max-w-[1400px] px-6 pt-16 pb-24 min-h-screen">
@@ -143,7 +149,7 @@ const AINexus = () => {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-enter">
           {recommendations.map((music) => (
             <div
               key={music._id}

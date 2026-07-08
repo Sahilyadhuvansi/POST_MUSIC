@@ -9,6 +9,16 @@ export default defineConfig({
     port: 5173,
   },
   build: {
-    sourcemap: false, // Disable sourcemaps in production to avoid eval() in CSP
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-lucide': ['lucide-react'],
+          'vendor-youtube': ['react-youtube'],
+          'vendor-http': ['axios'],
+        },
+      },
+    },
   },
 });
