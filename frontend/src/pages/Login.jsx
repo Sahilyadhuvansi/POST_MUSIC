@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../features/auth/AuthContext";
 import { useToast } from "../components/ui/Toast";
@@ -10,8 +10,12 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const { addToast } = useToast();
+
+  useEffect(() => {
+    if (user) navigate("/music", { replace: true });
+  }, [user, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -67,10 +71,11 @@ const Login = () => {
         <form className="space-y-6" onSubmit={handleSubmit}>
           {/* Identity */}
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500 ml-1 flex items-center gap-2">
+            <label htmlFor="login-identifier" className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500 ml-1 flex items-center gap-2">
               <User className="w-3 h-3" /> Identity
             </label>
             <input
+              id="login-identifier"
               type="text"
               required
               className="w-full rounded-2xl border border-white/5 bg-white/5 px-5 py-4 text-sm text-white placeholder-neutral-700 outline-none transition-all focus:border-indigo-500/50 hover:bg-white/[0.08]"
@@ -83,11 +88,12 @@ const Login = () => {
 
           {/* Key */}
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500 ml-1 flex items-center gap-2">
+            <label htmlFor="login-password" className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500 ml-1 flex items-center gap-2">
               <Lock className="w-3 h-3" /> Password
             </label>
             <div className="relative">
               <input
+                id="login-password"
                 type={showPassword ? "text" : "password"}
                 required
                 className="w-full rounded-2xl border border-white/5 bg-white/5 px-5 py-4 pr-14 text-sm text-white placeholder-neutral-700 outline-none transition-all focus:border-indigo-500/50 hover:bg-white/[0.08]"

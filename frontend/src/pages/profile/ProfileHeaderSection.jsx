@@ -16,7 +16,7 @@ const ProfileHeaderSection = ({
           onClick={() => isEditing && fileInputRef.current?.click()}
           className={`relative h-28 w-28 sm:h-32 sm:w-32 flex-shrink-0 rounded-full bg-gradient-to-tr from-indigo-500 to-pink-500 p-[3px] shadow-xl ${isEditing ? "cursor-pointer" : ""}`}
         >
-          <div className="h-full w-full rounded-full overflow-hidden bg-gray-900 ring-4 ring-black">
+          <div className="h-full w-full rounded-full overflow-hidden bg-neutral-900 ring-4 ring-black">
             <img
               src={preview || DEFAULT_AVATAR}
               onError={(e) => {
@@ -63,21 +63,21 @@ const ProfileHeaderSection = ({
           <h1 className="text-2xl sm:text-3xl font-black text-white">
             {user.username}
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-neutral-500 mt-1">
             Member since{" "}
             {user.createdAt
               ? new Date(user.createdAt).getUTCFullYear()
               : "2026"}
           </p>
           {user.bio && (
-            <p className="text-sm text-gray-400 mt-2 max-w-md">{user.bio}</p>
+            <p className="text-sm text-neutral-400 mt-2 max-w-md">{user.bio}</p>
           )}
         </div>
 
         <div className="flex gap-2.5 w-full sm:w-auto">
           <button
             onClick={() => setIsEditing(!isEditing)}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-white/[0.06] border border-white/10 hover:bg-white/10 px-5 py-2.5 text-sm font-semibold text-gray-300 hover:text-white transition-all"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-white/[0.06] border border-white/10 hover:bg-white/10 px-5 py-2.5 text-sm font-semibold text-neutral-300 hover:text-white transition-all"
           >
             {isEditing ? "Cancel" : "Edit Profile"}
           </button>

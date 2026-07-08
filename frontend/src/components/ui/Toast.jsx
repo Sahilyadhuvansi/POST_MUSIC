@@ -57,7 +57,9 @@ const ToastItem = ({ message, type, duration, onClose }) => {
 
   return (
     <div
-      className={`pointer-events-auto flex items-center gap-4 min-w-[320px] max-w-md p-4 rounded-2xl glass border ${colors[type]} animate-float shadow-2xl transition-all`}
+      role="alert"
+      aria-atomic="true"
+      className={`pointer-events-auto flex items-center gap-4 min-w-[320px] max-w-md p-4 rounded-2xl glass border ${colors[type]} animate-fade-in-up shadow-2xl transition-all`}
     >
       <div className="flex-shrink-0">{icons[type]}</div>
       <p className="flex-grow text-sm font-bold text-white/90 leading-tight">

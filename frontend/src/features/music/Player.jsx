@@ -85,6 +85,83 @@ const BottomSheet = memo(({ isOpen, onClose, title, children }) => {
   );
 });
 
+// ─── QueueList ───────────────────────────────────────────────────────────────
+const QueueList = memo(({ playlist, currentTrack }) =>
+  playlist.length === 0 ? (
+    <div className="flex flex-col items-center justify-center py-14 gap-3">
+      <ListMusic className="h-8 w-8 text-neutral-700" />
+      <p className="text-sm text-neutral-600">Queue is empty</p>
+    </div>
+  ) : (
+    <div>
+      {playlist.map((track, i) => {
+        const active = track._id === currentTrack?._id;
+        return (
+          <div
+            key={track._id || i}
+            className={`flex items-center gap-3 px-5 py-3 transition-colors ${active ? "bg-white/10" : "hover:bg-white/5"}`}
+          >
+            <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-neutral-800">
+              {track.thumbnail ? (
+                <img src={track.thumbnail} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center">
+                  <MusicIcon className="h-4 w-4 text-neutral-600" />
+                </div>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className={`truncate text-sm font-semibold ${active ? "text-white" : "text-neutral-300"}`}>
+                {track.title}
+              </p>
+              <p className="truncate text-xs text-neutral-500">
+                {track.artist?.username || "Unknown"}
+              </p>
+            </div>
+            {active && (
+              <div className="flex items-end gap-0.5" style={{ height: 16 }}>
+                {[4, 7, 5].map((h, b) => (
+                  <div
+                    key={b}
+                    className="w-0.5 animate-bounce rounded-full bg-indigo-400"
+                    style={{ height: h + 4, animationDelay: `${b * 0.15}s`, animationDuration: "0.8s" }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  )
+);
+
+// ─── SleepOptions ─────────────────────────────────────────────────────────────
+const SleepOptions = memo(({ sleepActive, sleepLabel, onSelect, onCancel }) => (
+  <div>
+    {SLEEP_OPTIONS.map((opt) => (
+      <button
+        key={opt.label}
+        onClick={() => onSelect(opt)}
+        className="flex w-full items-center justify-between px-5 py-4 text-base font-medium text-neutral-200 transition-colors active:bg-white/10 hover:bg-white/5"
+      >
+        {opt.label}
+      </button>
+    ))}
+    {sleepActive && (
+      <div className="border-t border-white/5">
+        <button
+          onClick={onCancel}
+          className="flex w-full items-center gap-3 px-5 py-4 text-base font-semibold text-red-400 transition-colors active:bg-red-500/10 hover:bg-white/5"
+        >
+          <X className="h-4 w-4" />
+          Cancel timer ({sleepLabel})
+        </button>
+      </div>
+    )}
+  </div>
+));
+
 // ─── SeekBar ─────────────────────────────────────────────────────────────────
 const SeekBar = memo(({ progress, onSeek, elapsed, total }) => (
   <div className="space-y-1.5">
@@ -221,12 +298,32 @@ const Player = () => {
     setShowSleepSheet(false);
   }, []);
 
-  // ── Keyboard / history ─────────────────────────────────────────────────────
+  // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   useEffect(() => {
-    const h = (e) => e.key === "Escape" && setIsExpanded(false);
+    const h = (e) => {
+      // Never fire when user is typing in an input/textarea
+      const tag = document.activeElement?.tagName;
+      const isTyping = tag === "INPUT" || tag === "TEXTAREA" || document.activeElement?.isContentEditable;
+
+      if (e.key === "Escape") { setIsExpanded(false); return; }
+      if (isTyping) return;
+
+      if (e.key === " " || e.code === "Space") {
+        e.preventDefault();
+        togglePlay();
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        seek(Math.min(100, progressValue + (5 / (duration || 1)) * 100));
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        seek(Math.max(0, progressValue - (5 / (duration || 1)) * 100));
+      } else if (e.key === "m" || e.key === "M") {
+        setVolume(volume === 0 ? 0.7 : 0);
+      }
+    };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, []);
+  }, [togglePlay, seek, progressValue, duration, volume, setVolume]);
 
   useEffect(() => {
     if (!isExpanded) return;
@@ -241,6 +338,7 @@ const Player = () => {
   // ── Scroll lock ────────────────────────────────────────────────────────────
   useEffect(() => {
     document.body.classList.toggle("has-mini-player", !!currentTrack && !isExpanded);
+    document.body.classList.toggle("has-expanded-player", !!currentTrack && isExpanded);
     if (currentTrack && isExpanded) {
       const y = window.scrollY;
       Object.assign(document.body.style, {
@@ -345,81 +443,7 @@ const Player = () => {
   const RepeatIcon = repeatMode === "one" ? Repeat1 : Repeat;
   const VolumeIcon = volume === 0 ? VolumeX : Volume2;
 
-  // ── Shared content: Queue list ─────────────────────────────────────────────
-  const QueueList = () =>
-    playlist.length === 0 ? (
-      <div className="flex flex-col items-center justify-center py-14 gap-3">
-        <ListMusic className="h-8 w-8 text-neutral-700" />
-        <p className="text-sm text-neutral-600">Queue is empty</p>
-      </div>
-    ) : (
-      <div>
-        {playlist.map((track, i) => {
-          const active = track._id === currentTrack?._id;
-          return (
-            <div
-              key={track._id || i}
-              className={`flex items-center gap-3 px-5 py-3 transition-colors ${active ? "bg-white/10" : "hover:bg-white/5 active:bg-white/8"}`}
-            >
-              <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-neutral-800">
-                {track.thumbnail ? (
-                  <img src={track.thumbnail} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center">
-                    <MusicIcon className="h-4 w-4 text-neutral-600" />
-                  </div>
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className={`truncate text-sm font-semibold ${active ? "text-white" : "text-neutral-300"}`}>
-                  {track.title}
-                </p>
-                <p className="truncate text-xs text-neutral-500">
-                  {track.artist?.username || "Unknown"}
-                </p>
-              </div>
-              {active && (
-                <div className="flex items-end gap-0.5" style={{ height: 16 }}>
-                  {[4, 7, 5].map((h, b) => (
-                    <div
-                      key={b}
-                      className="w-0.5 animate-bounce rounded-full bg-indigo-400"
-                      style={{ height: h + 4, animationDelay: `${b * 0.15}s`, animationDuration: "0.8s" }}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    );
-
-  // ── Shared content: Sleep options ─────────────────────────────────────────
-  const SleepOptions = () => (
-    <div>
-      {SLEEP_OPTIONS.map((opt) => (
-        <button
-          key={opt.label}
-          onClick={() => handleSleepSelect(opt)}
-          className="flex w-full items-center justify-between px-5 py-4 text-base font-medium text-neutral-200 transition-colors active:bg-white/10 hover:bg-white/5"
-        >
-          {opt.label}
-        </button>
-      ))}
-      {sleepActive && (
-        <div className="border-t border-white/5">
-          <button
-            onClick={cancelSleep}
-            className="flex w-full items-center gap-3 px-5 py-4 text-base font-semibold text-red-400 transition-colors active:bg-red-500/10 hover:bg-white/5"
-          >
-            <X className="h-4 w-4" />
-            Cancel timer ({sleepLabel})
-          </button>
-        </div>
-      )}
-    </div>
-  );
+  // QueueList and SleepOptions are defined at file scope (memo components)
 
   // ────────────────────────────────────────────────────────────────────────────
   // EXPANDED PLAYER
@@ -433,14 +457,14 @@ const Player = () => {
           onClose={() => setShowQueueSheet(false)}
           title={`Queue · ${playlist.length} tracks`}
         >
-          <QueueList />
+          <QueueList playlist={playlist} currentTrack={currentTrack} />
         </BottomSheet>
         <BottomSheet
           isOpen={showSleepSheet}
           onClose={() => setShowSleepSheet(false)}
           title="Sleep timer"
         >
-          <SleepOptions />
+          <SleepOptions sleepActive={sleepActive} sleepLabel={sleepLabel} onSelect={handleSleepSelect} onCancel={cancelSleep} />
         </BottomSheet>
 
         <div className="fixed inset-0 z-[1300]" role="dialog" aria-modal="true" aria-label="Music Player">

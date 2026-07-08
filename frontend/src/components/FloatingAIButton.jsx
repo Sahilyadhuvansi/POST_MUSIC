@@ -75,15 +75,17 @@ const FloatingAIButton = () => {
           setBrainContext((prev) => ({ ...prev, ...brainResult.nextContext }));
         }
 
+        const steps = brainResult.execution?.steps || [];
+        const content = steps.length > 0
+          ? steps.map((s) => `${s.status === "success" ? "✓" : "✗"} ${s.detail}`).join("\n")
+          : brainResult.message || "Done.";
+
         const aiMessage = {
           id: Date.now() + 1,
           role: "assistant",
           type: "execution-report",
           payload: brainResult.execution || null,
-          content:
-            brainResult.execution?.steps?.length > 0
-              ? JSON.stringify({ steps: brainResult.execution.steps }, null, 2)
-              : brainResult.message || "Done.",
+          content,
           model: "music-command-brain",
         };
 
@@ -138,7 +140,7 @@ const FloatingAIButton = () => {
         err.response?.data?.error ||
         "AI assistant is taking a break. Try shorter messages.";
       setError(errorMsg);
-      console.error("Chat error:", err);
+      if (import.meta.env.DEV) console.error("Chat error:", err);
     } finally {
       setIsLoading(false);
     }

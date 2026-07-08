@@ -8,6 +8,7 @@ import {
   Play,
   Headphones,
   Disc,
+  // Play is used in the thumbnail hover overlay
 } from "lucide-react";
 import api from "../services/api";
 import { useToast } from "../components/ui/Toast";
@@ -68,7 +69,7 @@ const AINexus = () => {
   ], []);
 
   return (
-    <div className="mx-auto max-w-[1400px] px-6 pt-16 pb-24 min-h-screen">
+    <div className="mx-auto max-w-[1400px] px-6 pt-24 pb-24 min-h-screen">
       {/* Nexus Header */}
       <div className="mb-20 border-b border-white/5 pb-10 flex flex-col md:flex-row md:items-end justify-between gap-10">
         <div className="space-y-4">
@@ -102,7 +103,7 @@ const AINexus = () => {
             onClick={() => setMood("")}
             className={`px-8 py-4 rounded-[20px] text-xs font-black uppercase tracking-widest transition-all duration-300 border ${
               mood === ""
-                ? "bg-white text-black border-white shadow-[0_12px_40px_rgba(255,255,255,0.2)] scale-105"
+                ? "bg-white text-black border-white shadow-[0_12px_40px_rgba(255,255,255,0.2)] ring-2 ring-white/30"
                 : "glass border-white/5 text-neutral-500 hover:text-white hover:bg-white/5"
             }`}
           >
@@ -114,7 +115,7 @@ const AINexus = () => {
               onClick={() => setMood(m.id)}
               className={`flex items-center gap-3 px-8 py-4 rounded-[20px] text-xs font-black uppercase tracking-widest transition-all duration-300 border ${
                 mood === m.id
-                  ? "bg-indigo-500 text-white border-indigo-500 shadow-[0_12px_40px_rgba(79,70,229,0.3)] scale-105"
+                  ? "bg-indigo-500 text-white border-indigo-500 shadow-[0_12px_40px_rgba(79,70,229,0.3)] ring-2 ring-indigo-400/40"
                   : "glass border-white/5 text-neutral-500 hover:text-white hover:bg-white/5"
               }`}
             >
@@ -201,13 +202,6 @@ const AINexus = () => {
                     </div>
                   )}
                 </div>
-
-                <button
-                  onClick={() => playTrack(music, recommendations)}
-                  className="p-4 rounded-full glass border-white/5 text-neutral-500 hover:text-white hover:bg-white/10 transition-all shadow-xl active:scale-90"
-                >
-                  <Play className="w-5 h-5 fill-current" />
-                </button>
               </div>
             </div>
           ))}

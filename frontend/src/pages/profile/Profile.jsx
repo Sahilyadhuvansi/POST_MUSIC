@@ -5,9 +5,10 @@ import { useProfileController } from "./useProfileController";
 import ProfileUniverseSection from "./ProfileUniverseSection";
 import ProfileHeaderSection from "./ProfileHeaderSection";
 import ProfileEditForm from "./ProfileEditForm";
+import { ProfileSkeleton } from "../../components/SkeletonLoader";
 
 const Profile = () => {
-  const { user, logout, updateUser } = useAuth();
+  const { user, logout, updateUser, loading: authLoading } = useAuth();
   const { playTrack, currentTrack, isPlaying } = useMusic();
   const navigate = useNavigate();
   const {
@@ -33,10 +34,11 @@ const Profile = () => {
     navigate("/login");
   };
 
+  if (authLoading) return <ProfileSkeleton />;
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-[var(--color-bg)]">
       <div className="h-40 sm:h-52 w-full bg-gradient-to-br from-indigo-600/40 via-purple-600/30 to-pink-600/40" />
 
       <div className="mx-auto max-w-3xl px-4 sm:px-6 pb-16">

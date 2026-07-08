@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../features/auth/AuthContext";
 import { useToast } from "../components/ui/Toast";
@@ -22,8 +22,12 @@ const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const navigate = useNavigate();
-  const { register } = useAuth();
+  const { register, user } = useAuth();
   const { addToast } = useToast();
+
+  useEffect(() => {
+    if (user) navigate("/music", { replace: true });
+  }, [user, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -87,10 +91,11 @@ const Register = () => {
         >
           {/* Username */}
           <div className="space-y-2 md:col-span-1">
-            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500 ml-1 flex items-center gap-2">
+            <label htmlFor="reg-username" className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500 ml-1 flex items-center gap-2">
               <User className="w-3 h-3" /> Alias
             </label>
             <input
+              id="reg-username"
               type="text"
               required
               className="w-full rounded-2xl border border-white/5 bg-white/5 px-5 py-4 text-sm text-white placeholder-neutral-700 outline-none transition-all focus:border-indigo-500/50 hover:bg-white/[0.08]"
@@ -103,10 +108,11 @@ const Register = () => {
 
           {/* Email */}
           <div className="space-y-2 md:col-span-1">
-            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500 ml-1 flex items-center gap-2">
+            <label htmlFor="reg-email" className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500 ml-1 flex items-center gap-2">
               <Mail className="w-3 h-3" /> Frequency
             </label>
             <input
+              id="reg-email"
               type="email"
               required
               className="w-full rounded-2xl border border-white/5 bg-white/5 px-5 py-4 text-sm text-white placeholder-neutral-700 outline-none transition-all focus:border-indigo-500/50 hover:bg-white/[0.08]"
@@ -119,11 +125,12 @@ const Register = () => {
 
           {/* Password */}
           <div className="space-y-2 md:col-span-1">
-            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500 ml-1 flex items-center gap-2">
+            <label htmlFor="reg-password" className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500 ml-1 flex items-center gap-2">
               <Lock className="w-3 h-3" /> Password
             </label>
             <div className="relative">
               <input
+                id="reg-password"
                 type={showPassword ? "text" : "password"}
                 required
                 className="w-full rounded-2xl border border-white/5 bg-white/5 px-5 py-4 pr-14 text-sm text-white placeholder-neutral-700 outline-none transition-all focus:border-indigo-500/50 hover:bg-white/[0.08]"
@@ -148,10 +155,11 @@ const Register = () => {
 
           {/* Confirm */}
           <div className="space-y-2 md:col-span-1">
-            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500 ml-1 flex items-center gap-2">
+            <label htmlFor="reg-confirm" className="text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500 ml-1 flex items-center gap-2">
               <ShieldCheck className="w-3 h-3" /> Verifier
             </label>
             <input
+              id="reg-confirm"
               type={showPassword ? "text" : "password"}
               required
               className="w-full rounded-2xl border border-white/5 bg-white/5 px-5 py-4 text-sm text-white placeholder-neutral-700 outline-none transition-all focus:border-indigo-500/50 hover:bg-white/[0.08]"

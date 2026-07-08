@@ -91,14 +91,13 @@ const Footer = () => {
 
           <FooterSection title="Navigation">
             <FooterLink to="/music">Frequency Hub</FooterLink>
-            <FooterLink to="/trending">Rising Heat</FooterLink>
-            <FooterLink to="/artists">Creator Directory</FooterLink>
             <FooterLink to="/ai-picks">AI Picks</FooterLink>
+            <FooterLink to="/profile">Your Profile</FooterLink>
           </FooterSection>
 
           <FooterSection title="Platform">
-            <FooterLink to="/profile">Your Profile</FooterLink>
             <FooterLink to="/register">Join the Frequency</FooterLink>
+            <FooterLink to="/login">Sign In</FooterLink>
           </FooterSection>
 
           <FooterSection title="Connect">

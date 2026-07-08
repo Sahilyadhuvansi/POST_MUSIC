@@ -9,13 +9,13 @@ const ProfileEditForm = ({
   if (!isEditing) return null;
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-gray-950/60 backdrop-blur-xl p-6 sm:p-8">
+    <div className="rounded-2xl border border-white/10 bg-neutral-950/80 backdrop-blur-xl p-6 sm:p-8">
       <h2 className="text-lg font-bold text-white mb-6">Edit Profile</h2>
       <form onSubmit={handleUpdate} className="space-y-6">
         <div>
           <label
             htmlFor="p-username"
-            className="block text-xs font-semibold text-gray-400 mb-2 ml-1"
+            className="block text-xs font-semibold text-neutral-400 mb-2 ml-1"
           >
             Username
           </label>
@@ -24,7 +24,7 @@ const ProfileEditForm = ({
             type="text"
             value={form.username}
             onChange={(e) => setForm({ ...form, username: e.target.value })}
-            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder-gray-600 outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20"
+            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder-neutral-600 outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20"
             placeholder="Username"
             autoComplete="username"
           />
@@ -32,7 +32,7 @@ const ProfileEditForm = ({
         <div>
           <label
             htmlFor="p-bio"
-            className="block text-xs font-semibold text-gray-400 mb-2 ml-1"
+            className="block text-xs font-semibold text-neutral-400 mb-2 ml-1"
           >
             Bio
           </label>
@@ -42,9 +42,9 @@ const ProfileEditForm = ({
             onChange={(e) => setForm({ ...form, bio: e.target.value })}
             placeholder="Tell the world about yourself..."
             maxLength={160}
-            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder-gray-600 outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 h-24 resize-none"
+            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder-neutral-600 outline-none focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20 h-24 resize-none"
           />
-          <p className="text-right text-xs text-gray-600 mt-1">
+          <p className="text-right text-xs text-neutral-600 mt-1">
             {form.bio.length}/160
           </p>
         </div>
@@ -66,7 +66,7 @@ const ProfileEditForm = ({
           <button
             type="button"
             onClick={handleCancelEdit}
-            className="flex-1 rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] px-6 py-3 text-sm font-semibold text-gray-400 hover:text-white transition-all"
+            className="flex-1 rounded-xl border border-white/10 bg-white/[0.03] hover:bg-white/[0.06] px-6 py-3 text-sm font-semibold text-neutral-400 hover:text-white transition-all"
           >
             Cancel
           </button>
