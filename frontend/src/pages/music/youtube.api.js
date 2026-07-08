@@ -11,6 +11,91 @@ import {
   scoreVideo,
 } from "./youtube.helpers";
 
+export const fetchVideoDetailsByIds = async (videoIds = [], apiKey, signal) => {
+  const detailsMap = new Map();
+  if (!videoIds.length) return detailsMap;
+
+  const batches = chunk(videoIds, 50);
+
+  for (const batch of batches) {
+    const params = new URLSearchParams({
+      part: "snippet,contentDetails,statistics",
+      id: batch.join(","),
+      key: apiKey,
+      fields:
+        "items(id,snippet(title,channelTitle,categoryId,liveBroadcastContent,channelId),contentDetails(duration),statistics(viewCount))",
+    });
+
+    const res = await fetch(
+      `https://www.googleapis.com/youtube/v3/videos?${params}`,
+      { signal },
+    );
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      if (res.status === 403) throw new Error("quota");
+      throw new Error(err?.error?.message || `YouTube API error ${res.status}`);
+    }
+
+    const data = await res.json();
+    for (const item of data.items || []) {
+      detailsMap.set(item.id, {
+        title: item.snippet?.title || "",
+        channelTitle: item.snippet?.channelTitle || "",
+        channelId: item.snippet?.channelId || "",
+        categoryId: item.snippet?.categoryId || "",
+        liveBroadcastContent: item.snippet?.liveBroadcastContent || "none",
+        durationSeconds: parseIso8601DurationToSeconds(
+          item.contentDetails?.duration,
+        ),
+        viewCount: Number(item.statistics?.viewCount || 0),
+      });
+    }
+  }
+
+  return detailsMap;
+};
+
+export const fetchChannelStatsByIds = async (
+  channelIds = [],
+  apiKey,
+  signal,
+) => {
+  const statsMap = new Map();
+  if (!channelIds.length) return statsMap;
+
+  const batches = chunk(channelIds, 50);
+
+  for (const batch of batches) {
+    const params = new URLSearchParams({
+      part: "statistics",
+      id: batch.join(","),
+      key: apiKey,
+      fields: "items(id,statistics(subscriberCount))",
+    });
+
+    const res = await fetch(
+      `https://www.googleapis.com/youtube/v3/channels?${params}`,
+      { signal },
+    );
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      if (res.status === 403) throw new Error("quota");
+      throw new Error(err?.error?.message || `YouTube API error ${res.status}`);
+    }
+
+    const data = await res.json();
+    for (const item of data.items || []) {
+      statsMap.set(item.id, {
+        subscriberCount: Number(item.statistics?.subscriberCount || 0),
+      });
+    }
+  }
+
+  return statsMap;
+};
+
 export const fetchYouTubeContentFresh = async (term, signal, options = {}) => {
   const API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY;
   const {
@@ -122,8 +207,7 @@ export const fetchYouTubeContentFresh = async (term, signal, options = {}) => {
           }) +
           scoreVideo({
             title,
-            channelTitle:
-              details.channelTitle || item.snippet.channelTitle || "",
+            channelTitle: item.snippet.channelTitle || "",
           }),
       };
     })
