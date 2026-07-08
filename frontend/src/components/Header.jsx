@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../features/auth/AuthContext";
-import { Music, User, LogOut, Menu, X } from "lucide-react";
+import { Music, User, LogOut, Menu, X, Sparkles } from "lucide-react";
 import { DEFAULT_AVATAR } from "../config";
 
 const NavLink = ({
@@ -88,6 +88,14 @@ const Header = () => {
           >
             Vibes
           </NavLink>
+          <NavLink
+            to="/ai-picks"
+            icon={Sparkles}
+            location={location}
+            onClick={closeMobile}
+          >
+            AI Picks
+          </NavLink>
         </div>
 
         {/* Action Nexus */}
@@ -156,6 +164,14 @@ const Header = () => {
             onClick={closeMobile}
           >
             Vibes
+          </NavLink>
+          <NavLink
+            to="/ai-picks"
+            icon={Sparkles}
+            location={location}
+            onClick={closeMobile}
+          >
+            AI Picks
           </NavLink>
           {user ? (
             <>
