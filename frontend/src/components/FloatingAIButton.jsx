@@ -126,11 +126,25 @@ const FloatingAIButton = () => {
             { ...track, _id: track._id || `ai_${Date.now()}` },
             [track]
           );
-        } else if (data.action === "search_music" && Array.isArray(data.payload?.musics)) {
+        } else if (
+          (data.action === "search_music" || data.action === "fetch_favorites") &&
+          Array.isArray(data.payload?.musics)
+        ) {
           setBrainContext(prev => ({
             ...prev,
             lastResults: data.payload.musics
           }));
+          // Override message content to show song cards
+          aiMessage.type = "ui-controller";
+          aiMessage.payload = {
+            type: "songs",
+            data: data.payload.musics.slice(0, 10).map((m) => ({
+              id: m._id || m.songId,
+              title: m.title,
+              youtubeUrl: m.youtubeUrl,
+            })),
+          };
+          aiMessage.content = data.content || "";
         }
       }
 

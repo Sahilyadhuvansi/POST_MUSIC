@@ -165,17 +165,22 @@ class AIService {
         return { valid: false, error: `Invalid role: ${msg.role}` };
       if (typeof msg.content !== "string")
         return { valid: false, error: "Message content must be a string" };
+    }
 
+    // Only security-check and length-limit the last USER message
+    // (assistant messages in history can be long — don't reject them)
+    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
+    if (lastUserMsg) {
       let riskScore = 0;
       for (const pattern of SUSPICIOUS_PATTERNS) {
-        if (pattern.test(msg.content)) riskScore += 1;
+        if (pattern.test(lastUserMsg.content)) riskScore += 1;
       }
       if (riskScore >= 2)
         return {
           valid: false,
           error: "High-confidence prompt injection detected",
         };
-      if (msg.content.length > 1000)
+      if (lastUserMsg.content.length > 1000)
         return {
           valid: false,
           error: "Message too long (max 1000 chars for AI safety)",

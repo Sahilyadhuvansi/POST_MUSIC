@@ -44,7 +44,7 @@ const validateInputRisk = (input, label = "Input") => {
 exports.validateChatInput = (req, res, next) => {
   const { messages } = req.body;
   if (!Array.isArray(messages) || messages.length === 0) {
-    return next(new ErrorResponse("Query history is required", 400, "VALIDATION_ERROR"));
+    return next(new ErrorResponse("Please send a message to continue", 400, "VALIDATION_ERROR"));
   }
 
   const lastMsg = messages[messages.length - 1];

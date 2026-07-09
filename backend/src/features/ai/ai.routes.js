@@ -56,15 +56,30 @@ router.post("/mood-playlist", aiRateLimiter, aiController.moodPlaylist);
 router.get("/trending", aiRateLimiter, aiController.getTrending);
 
 
+// Optional auth — attaches req.user if token present, but does NOT block guests
+const optionalAuth = (req, res, next) => {
+  const token = req.cookies?.token || req.headers.authorization?.split(" ")[1];
+  if (!token) return next();
+  try {
+    const jwt = require("jsonwebtoken");
+    req.user = jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    // invalid/expired token — treat as guest
+  }
+  next();
+};
+
 /**
  * @route   POST /api/ai/chat
  * @desc    General-purpose chat interface (Groq-powered, Floating Button)
- * @access  Public
+ * @access  Public (guests allowed; auth-required tools return helpful message)
  */
 router.post(
   "/chat",
-  authMiddleware,
+  optionalAuth,
   aiRateLimiter,
+  quotaCheckMiddleware,
+  quotaDeductionMiddleware,
   validation.validateChatInput,
   aiController.chat,
 );

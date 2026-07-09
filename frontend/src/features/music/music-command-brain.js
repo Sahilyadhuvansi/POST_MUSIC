@@ -146,7 +146,7 @@ const inferActionLabel = (clause = "") => {
   const text = lower(clause);
   if (/\bimport\b/.test(text)) return "import";
   if (/\blike all\b/.test(text)) return "like_all";
-  if (/\blike|favorite|save\b/.test(text)) return "like_song";
+  if (/\b(like|favorite|save)\b/.test(text)) return "like_song";
   if (/\bplay\b/.test(text)) return "play";
   if (/\bcreate playlist\b/.test(text)) return "create_playlist";
   if (/\brename playlist\b/.test(text)) return "rename_playlist";
@@ -682,7 +682,8 @@ const executeSingleClause = async (clause, ctx, state, logs) => {
     ctx.music.playTrack(results[0], results);
     ctx.lastResults = results;
     ctx.lastQuery = query;
-    state = updateListeningStats(state, results[0]);
+    const updatedState = updateListeningStats(state, results[0]);
+    Object.assign(state, updatedState);
     logs.push(`Playing ${results[0].title}.`);
     return;
   }

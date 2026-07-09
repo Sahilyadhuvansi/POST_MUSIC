@@ -107,10 +107,15 @@ const getActionDecision = async (
     strict: true,
   });
 
-  const parsed =
-    typeof aiRes?.content === "string"
-      ? JSON.parse(aiRes.content)
-      : aiRes?.content || {};
+  let parsed = {};
+  try {
+    parsed =
+      typeof aiRes?.content === "string"
+        ? JSON.parse(aiRes.content)
+        : aiRes?.content || {};
+  } catch {
+    return { action: ACTIONS.RESPOND_NORMALLY, args: {}, reply: "" };
+  }
   const action = normalizeText(parsed.action).toLowerCase();
 
   if (!Object.values(ACTIONS).includes(action)) {
@@ -169,7 +174,7 @@ exports.getRecommendations = async (req, res, next) => {
 exports.findSimilar = async (req, res, next) => {
   try {
     const { musicId } = req.params;
-    const similar = await musicRecommendation.findSimilarTracks(musicId);
+    const similar = await musicRecommendation.findSimilar(musicId);
     res.status(200).json({ success: true, data: similar, requestId: req.id });
   } catch (error) {
     next(error);
@@ -325,8 +330,10 @@ exports.chat = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      type: isStructured ? "structured" : "text",
-      [isStructured ? "payload" : "content"]: aiRes.content,
+      type: "text",
+      content: typeof aiRes.content === "string"
+        ? aiRes.content
+        : JSON.stringify(aiRes.content),
       model: aiRes.model,
       requestId: req.id,
     });
