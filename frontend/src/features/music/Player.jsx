@@ -235,11 +235,25 @@ const Player = () => {
   const prevTrackIdRef = useRef(null);
   const sleepMenuRef = useRef(null);
 
+  // ─── Derived values ─────────────────────────────────────────────────────────
+  const progressValue = useMemo(
+    () => (Number.isFinite(progress) ? progress : 0),
+    [progress],
+  );
+
+  const elapsedTime = useMemo(
+    () => fmt((progressValue * duration) / 100),
+    [progressValue, duration],
+  );
+
+  const totalDuration = useMemo(() => fmt(duration), [duration]);
+
   // ── End-of-song sleep ──────────────────────────────────────────────────────
   useEffect(() => {
     const id = currentTrack?._id || null;
     if (sleepMode === "end" && prevTrackIdRef.current && prevTrackIdRef.current !== id) {
       pause();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSleepMode(null);
       setSleepTimerEnd(null);
       setSleepRemaining(null);
@@ -418,17 +432,6 @@ const Player = () => {
     return !!savedByUrl[currentTrack.youtubeUrl];
   }, [currentTrack, savedByUrl]);
 
-  const progressValue = useMemo(
-    () => (Number.isFinite(progress) ? progress : 0),
-    [progress],
-  );
-
-  const elapsedTime = useMemo(
-    () => fmt((progressValue * duration) / 100),
-    [progressValue, duration],
-  );
-
-  const totalDuration = useMemo(() => fmt(duration), [duration]);
 
   const sleepActive = !!sleepMode;
   const sleepLabel =
@@ -631,7 +634,7 @@ const Player = () => {
                         <p className="text-xs font-semibold uppercase tracking-widest text-neutral-600">Lyrics coming soon</p>
                       </div>
                     ) : (
-                      <div className="max-h-44 overflow-y-auto"><QueueList /></div>
+                      <div className="max-h-44 overflow-y-auto"><QueueList playlist={playlist} currentTrack={currentTrack} /></div>
                     )}
                   </div>
                 </div>

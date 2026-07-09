@@ -3,7 +3,7 @@ import { ArrowLeft, Search } from "lucide-react";
 import { GENRES } from "./constants";
 
 const MusicBrowseControls = memo(({
-  tracksCount,
+  tracksCount: _tracksCount,
   searchQuery,
   setSearchQuery,
   isSearching,

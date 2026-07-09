@@ -267,7 +267,7 @@ const Music = () => {
                   playableTracks={playableVisibleTracks}
                   handleOpenPlaylist={handleOpenPlaylist}
                   // drag-and-drop only in favorites custom sort mode
-                  draggable={showFavoritesOnly && favoritesSortBy === "custom"}
+                  draggable={isDnDEnabled}
                   onDragStart={() => handleDragStart(index)}
                   onDragOver={(e) => handleDragOver(e, index)}
                   onDrop={() => handleDrop(index)}
