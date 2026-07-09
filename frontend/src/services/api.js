@@ -5,7 +5,7 @@ import analytics from "./analytics";
 export const api = axios.create({
   baseURL: `${API_URL}/api`,
   withCredentials: false,
-  timeout: 15000,
+  timeout: 30000,
 });
 
 // Request Interceptor: Attach JWT Token & Tracking

@@ -151,8 +151,14 @@ const FloatingAIButton = () => {
       setMessages((prev) => [...prev, aiMessage]);
     } catch (err) {
       const errorMsg =
-        err.response?.data?.error ||
-        "AI assistant is taking a break. Try shorter messages.";
+        err.response?.data?.error?.message ||
+        (typeof err.response?.data?.error === "string"
+          ? err.response?.data?.error
+          : null) ||
+        (err.code === "ECONNABORTED"
+          ? "Request timed out. Please try again."
+          : null) ||
+        "AI assistant is unavailable. Please check your connection.";
       setError(errorMsg);
       if (import.meta.env.DEV) console.error("Chat error:", err);
     } finally {

@@ -237,7 +237,7 @@ exports.chat = async (req, res, next) => {
     const userMessageRaw = messages[messages.length - 1]?.content || "";
     const userMessage = userMessageRaw.toLowerCase();
     const isStructured =
-      /song|music|latest|favorite|save|remove|playlist|spotify/i.test(
+      /song|music|latest|favorite|save|remove|playlist|spotify|trending|recommend|suggest|popular|listen|search|find|play|queue|like|add/i.test(
         userMessage,
       );
 
@@ -263,7 +263,7 @@ exports.chat = async (req, res, next) => {
       selectedAction = contextualAction;
       const resolved = resolveEntityFromContext(userMessageRaw, aiContext);
       interpretationEntity = resolved?.entity || null;
-    } else if (!preprocessed.forced) {
+    } else if (!preprocessed.forced && isStructured) {
       const decision = await getActionDecision(
         userMessage,
         appContext,
