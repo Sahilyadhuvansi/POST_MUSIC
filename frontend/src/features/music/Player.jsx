@@ -486,7 +486,7 @@ const Player = () => {
           />
           <div className="absolute inset-0 hidden overflow-y-auto lg:flex items-start justify-center py-5 px-4">
             <div
-              className="pointer-events-auto relative my-auto w-full max-w-5xl overflow-hidden rounded-[32px]"
+              className="pointer-events-auto relative my-auto w-full max-w-5xl overflow-hidden rounded-[32px] flex flex-col max-h-[calc(100vh-2.5rem)]"
               style={{
                 background: "linear-gradient(160deg, rgba(12,12,20,0.88), rgba(5,5,10,0.94))",
                 backdropFilter: "blur(48px) saturate(180%)",
@@ -517,9 +517,9 @@ const Player = () => {
               </div>
 
               {/* Desktop two-column layout */}
-              <div className="grid lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="grid lg:grid-cols-[1.1fr_0.9fr] min-h-0 flex-1 overflow-hidden">
                 {/* Left — Art */}
-                <div className="relative flex min-h-[400px] items-center justify-center bg-gradient-to-br from-white/[0.05] via-neutral-950 to-black p-10">
+                <div className="relative flex items-center justify-center bg-gradient-to-br from-white/[0.05] via-neutral-950 to-black p-10">
                   <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.22),transparent_46%)]" />
                   {coverArt && (
                     <img src={coverArt} alt="" aria-hidden className="pointer-events-none absolute inset-0 h-full w-full scale-125 object-cover opacity-[0.18] blur-3xl saturate-150" />
@@ -544,7 +544,7 @@ const Player = () => {
                 </div>
 
                 {/* Right — Controls */}
-                <div className="relative flex flex-col gap-5 p-6 sm:p-8">
+                <div className="relative flex flex-col gap-5 p-6 sm:p-8 overflow-y-auto">
                   <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
 
                   <SeekBar progress={progressValue} onSeek={seek} elapsed={elapsedTime} total={totalDuration} />
