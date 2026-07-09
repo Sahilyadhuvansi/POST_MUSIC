@@ -10,12 +10,8 @@ import {
   ExternalLink,
 } from "lucide-react";
 
-/**
- * PRODUCTION FOOTER v2.5.0
- * Deep clean & modular architecture
- */
 const FooterSection = ({ title, children }) => (
-  <div className="space-y-6">
+  <div className="space-y-5">
     <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-neutral-500">
       {title}
     </h4>
@@ -25,7 +21,7 @@ const FooterSection = ({ title, children }) => (
 
 const FooterLink = ({ to, children, external = false }) => {
   const base =
-    "text-sm text-neutral-400 hover:text-white transition-colors flex items-center gap-2 group";
+    "text-sm text-neutral-500 hover:text-white transition-colors duration-300 flex items-center gap-2 group";
   if (external) {
     return (
       <a href={to} target="_blank" rel="noreferrer" className={base}>
@@ -45,24 +41,39 @@ const Footer = () => {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="relative mt-32 border-t border-white/5 bg-black/40 backdrop-blur-3xl pt-24 pb-12 overflow-hidden">
-      {/* Background Polish Orbs */}
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-indigo-500/10 blur-[120px] rounded-full pointer-events-none" />
-      <div className="absolute top-0 right-1/4 w-96 h-96 bg-pink-500/10 blur-[120px] rounded-full pointer-events-none" />
+    <footer
+      className="relative mt-32 pt-24 pb-12 overflow-hidden"
+      style={{
+        borderTop: "1px solid rgba(255,255,255,0.06)",
+        background: "rgba(4, 4, 8, 0.7)",
+        backdropFilter: "blur(40px) saturate(160%)",
+        WebkitBackdropFilter: "blur(40px) saturate(160%)",
+        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.07)",
+      }}
+    >
+      {/* Ambient glows */}
+      <div className="absolute top-0 left-1/4 w-[28rem] h-[28rem] bg-indigo-500/8 blur-[100px] rounded-full pointer-events-none animate-depth-pulse" />
+      <div className="absolute top-0 right-1/4 w-[28rem] h-[28rem] bg-pink-500/8 blur-[100px] rounded-full pointer-events-none animate-depth-pulse" style={{ animationDelay: "3s" }} />
 
       <div className="mx-auto max-w-[1400px] px-6">
         <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr] gap-16 mb-24">
-          {/* Brand Identity Hub */}
+          {/* Brand */}
           <div className="space-y-8">
             <Link
               to="/"
-              className="inline-flex items-center gap-3 active:scale-95 transition-transform group"
+              className="inline-flex items-center gap-3 transition-all duration-300 active:scale-95 group"
             >
-              <div className="flex h-10 w-10 overflow-hidden items-center justify-center rounded-full bg-white shadow-xl transition-all group-hover:rotate-[10deg]">
+              <div
+                className="flex h-10 w-10 items-center justify-center rounded-full transition-all duration-500 group-hover:rotate-[12deg]"
+                style={{
+                  background: "rgba(255,255,255,0.9)",
+                  boxShadow: "0 0 0 1px rgba(168,85,247,0.25), 0 4px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.6)",
+                }}
+              >
                 <img
                   src="/logo.png"
                   alt="Logo"
-                  className="h-6 w-6 object-contain drop-shadow-[0_0_10px_rgba(255,100,200,0.6)]"
+                  className="h-6 w-6 object-contain"
                 />
               </div>
               <span className="text-xl font-black text-white italic uppercase tracking-tighter">
@@ -72,18 +83,23 @@ const Footer = () => {
                 </span>
               </span>
             </Link>
-            <p className="text-neutral-400 text-sm leading-relaxed max-w-xs">
+            <p className="text-neutral-500 text-sm leading-relaxed max-w-xs">
               Your personal music discovery universe. Search, explore, and vibe
               with the global frequency.
             </p>
-            <div className="flex gap-4">
+            <div className="flex gap-3">
               {[Github, Twitter, Instagram, Youtube].map((Icon, i) => (
                 <a
                   key={i}
                   href="#"
-                  className="p-3 rounded-2xl glass-dark border-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition-all"
+                  className="p-3 rounded-2xl text-neutral-500 hover:text-white transition-all duration-300 hover:scale-110 liquid-sheen-on-hover"
+                  style={{
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.07)",
+                    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.06)",
+                  }}
                 >
-                  <Icon className="w-5 h-5" />
+                  <Icon className="w-4.5 h-4.5" />
                 </a>
               ))}
             </div>
@@ -91,7 +107,6 @@ const Footer = () => {
 
           <FooterSection title="Navigation">
             <FooterLink to="/music">Frequency Hub</FooterLink>
-            <FooterLink to="/ai-picks">AI Picks</FooterLink>
             <FooterLink to="/profile">Your Profile</FooterLink>
           </FooterSection>
 
@@ -101,35 +116,44 @@ const Footer = () => {
           </FooterSection>
 
           <FooterSection title="Connect">
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 text-neutral-400">
-                <div className="p-2.5 rounded-xl bg-white/5">
-                  <Mail className="w-4 h-4" />
-                </div>
+            <div className="space-y-3">
+              <div
+                className="flex items-center gap-3 p-3 rounded-2xl text-neutral-500"
+                style={{
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                }}
+              >
+                <Mail className="w-4 h-4 flex-shrink-0" />
                 <span className="text-sm">uplink@musicdiscover.io</span>
               </div>
-              <div className="flex items-center gap-3 text-neutral-400">
-                <div className="p-2.5 rounded-xl bg-white/5">
-                  <MapPin className="w-4 h-4" />
-                </div>
+              <div
+                className="flex items-center gap-3 p-3 rounded-2xl text-neutral-500"
+                style={{
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                }}
+              >
+                <MapPin className="w-4 h-4 flex-shrink-0" />
                 <span className="text-sm">Global Distribution</span>
               </div>
             </div>
           </FooterSection>
         </div>
 
-        {/* Global Footer Base */}
-        <div className="border-t border-white/5 pt-12 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div className="flex items-center gap-2 text-neutral-500 text-[10px] font-black uppercase tracking-widest">
+        {/* Bottom bar */}
+        <div
+          className="pt-10 flex flex-col md:flex-row justify-between items-center gap-5"
+          style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
+        >
+          <div className="flex items-center gap-2 text-neutral-600 text-[10px] font-black uppercase tracking-widest">
             <span>&copy; {currentYear} MusicDiscover Systems</span>
             <span className="w-1 h-1 rounded-full bg-neutral-800" />
-            <span className="text-neutral-600">v2.5.0 Production Build</span>
+            <span className="text-neutral-700">v2.5.0</span>
           </div>
-          <div className="flex items-center gap-8">
-            <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-emerald-500">
-              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              All Systems Operational
-            </span>
+          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-emerald-500">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            All Systems Operational
           </div>
         </div>
       </div>

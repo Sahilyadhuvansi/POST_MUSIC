@@ -59,8 +59,15 @@ const BottomSheet = memo(({ isOpen, onClose, title, children }) => {
         onClick={onClose}
       />
       <div
-        className="absolute bottom-0 left-0 right-0 flex max-h-[78vh] flex-col overflow-hidden rounded-t-[28px] border-t border-white/10 bg-neutral-900/98 backdrop-blur-2xl animate-slide-up"
-        style={{ paddingBottom: "env(safe-area-inset-bottom, 1.25rem)" }}
+        className="absolute bottom-0 left-0 right-0 flex max-h-[78vh] flex-col overflow-hidden rounded-t-[28px] animate-slide-up"
+        style={{
+          paddingBottom: "env(safe-area-inset-bottom, 1.25rem)",
+          background: "linear-gradient(180deg, rgba(12,12,22,0.9), rgba(5,5,12,0.96))",
+          backdropFilter: "blur(48px) saturate(180%)",
+          WebkitBackdropFilter: "blur(48px) saturate(180%)",
+          borderTop: "1px solid rgba(255,255,255,0.1)",
+          boxShadow: "0 -16px 64px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)",
+        }}
       >
         {/* Handle */}
         <div className="flex flex-shrink-0 justify-center py-3">
@@ -479,7 +486,14 @@ const Player = () => {
           />
           <div className="absolute inset-0 hidden overflow-y-auto lg:flex items-start justify-center py-5 px-4">
             <div
-              className="pointer-events-auto relative my-auto w-full max-w-5xl overflow-hidden rounded-[32px] border border-white/10 bg-neutral-950/92 shadow-[0_40px_160px_rgba(0,0,0,0.72)] backdrop-blur-[28px]"
+              className="pointer-events-auto relative my-auto w-full max-w-5xl overflow-hidden rounded-[32px]"
+              style={{
+                background: "linear-gradient(160deg, rgba(12,12,20,0.88), rgba(5,5,10,0.94))",
+                backdropFilter: "blur(48px) saturate(180%)",
+                WebkitBackdropFilter: "blur(48px) saturate(180%)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 40px 160px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.12)",
+              }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Ambient */}
@@ -586,7 +600,16 @@ const Player = () => {
                         </button>
                       )}
                       {showSleepMenu && (
-                        <div className="absolute bottom-full right-0 z-10 mb-2 w-44 overflow-hidden rounded-2xl border border-white/10 bg-neutral-900/95 shadow-2xl backdrop-blur-xl">
+                        <div
+                          className="absolute bottom-full right-0 z-10 mb-2 w-44 overflow-hidden rounded-2xl"
+                          style={{
+                            background: "rgba(10,10,18,0.9)",
+                            backdropFilter: "blur(32px) saturate(180%)",
+                            WebkitBackdropFilter: "blur(32px) saturate(180%)",
+                            border: "1px solid rgba(255,255,255,0.1)",
+                            boxShadow: "0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)",
+                          }}
+                        >
                           <p className="px-4 pb-1.5 pt-3 text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500">Sleep after</p>
                           {SLEEP_OPTIONS.map((opt) => (
                             <button key={opt.label} onClick={() => handleSleepSelect(opt)}
@@ -810,7 +833,16 @@ const Player = () => {
       onTouchStart={onMiniTouchStart}
       onTouchEnd={onMiniTouchEnd}
     >
-      <div className="overflow-hidden rounded-[20px] border border-white/10 bg-neutral-950/90 shadow-[0_24px_80px_rgba(0,0,0,0.5)] backdrop-blur-[28px]">
+      <div
+        className="overflow-hidden rounded-[22px]"
+        style={{
+          background: "linear-gradient(160deg, rgba(12,12,20,0.88), rgba(5,5,10,0.94))",
+          backdropFilter: "blur(40px) saturate(180%)",
+          WebkitBackdropFilter: "blur(40px) saturate(180%)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 24px 80px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)",
+        }}
+      >
         {/* Clickable progress bar */}
         <div
           className="relative h-1 w-full cursor-pointer bg-white/[0.08]"

@@ -77,13 +77,32 @@ const ProfileHeaderSection = ({
         <div className="flex gap-2.5 w-full sm:w-auto">
           <button
             onClick={() => setIsEditing(!isEditing)}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl bg-white/[0.06] border border-white/10 hover:bg-white/10 px-5 py-2.5 text-sm font-semibold text-neutral-300 hover:text-white transition-all"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-neutral-300 hover:text-white transition-all duration-300 micro-interact"
+            style={{
+              background: "rgba(255,255,255,0.05)",
+              backdropFilter: "blur(12px)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.07)",
+            }}
           >
             {isEditing ? "Cancel" : "Edit Profile"}
           </button>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500 px-5 py-2.5 text-sm font-semibold text-red-400 hover:text-white transition-all"
+            className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-red-400 hover:text-white transition-all duration-300 micro-interact"
+            style={{
+              background: "rgba(239,68,68,0.07)",
+              border: "1px solid rgba(239,68,68,0.2)",
+              backdropFilter: "blur(12px)",
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.background = "rgba(239,68,68,0.85)";
+              e.currentTarget.style.border = "1px solid rgba(239,68,68,0.5)";
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.background = "rgba(239,68,68,0.07)";
+              e.currentTarget.style.border = "1px solid rgba(239,68,68,0.2)";
+            }}
           >
             Logout
           </button>

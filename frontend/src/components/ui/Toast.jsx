@@ -55,11 +55,29 @@ const ToastItem = ({ message, type, duration, onClose }) => {
     info: "border-indigo-500/20 bg-indigo-500/5",
   };
 
+  const glowColors = {
+    success: "rgba(16,185,129,0.15)",
+    error: "rgba(236,72,153,0.15)",
+    info: "rgba(99,102,241,0.15)",
+  };
+  const borderColors = {
+    success: "rgba(16,185,129,0.22)",
+    error: "rgba(236,72,153,0.22)",
+    info: "rgba(99,102,241,0.22)",
+  };
+
   return (
     <div
       role="alert"
       aria-atomic="true"
-      className={`pointer-events-auto flex items-center gap-4 min-w-[320px] max-w-md p-4 rounded-2xl glass border ${colors[type]} animate-fade-in-up shadow-2xl transition-all`}
+      className="pointer-events-auto flex items-center gap-4 min-w-[320px] max-w-md p-4 rounded-2xl animate-fade-in-up transition-all"
+      style={{
+        background: `linear-gradient(160deg, rgba(10,10,18,0.82), rgba(5,5,12,0.9))`,
+        backdropFilter: "blur(32px) saturate(180%)",
+        WebkitBackdropFilter: "blur(32px) saturate(180%)",
+        border: `1px solid ${borderColors[type]}`,
+        boxShadow: `0 4px 16px ${glowColors[type]}, 0 16px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)`,
+      }}
     >
       <div className="flex-shrink-0">{icons[type]}</div>
       <p className="flex-grow text-sm font-bold text-white/90 leading-tight">
@@ -67,9 +85,9 @@ const ToastItem = ({ message, type, duration, onClose }) => {
       </p>
       <button
         onClick={onClose}
-        className="p-1 hover:bg-white/5 rounded-lg transition-colors"
+        className="p-1.5 rounded-lg transition-colors duration-200 hover:bg-white/8"
       >
-        <X className="w-4 h-4 text-white/40" />
+        <X className="w-4 h-4 text-white/35" />
       </button>
     </div>
   );

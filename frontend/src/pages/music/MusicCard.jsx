@@ -12,7 +12,6 @@ const MusicCard = React.memo(
     handleOpenPlaylist,
     forceAlbum = false,
     accent = "indigo",
-    // drag-and-drop props (optional)
     draggable,
     onDragStart,
     onDragOver,
@@ -26,26 +25,55 @@ const MusicCard = React.memo(
     const isAlbum = forceAlbum || !!track.isPlaylist;
     const isSaved = !!savedByUrl[track.youtubeUrl];
 
-    const accentClass =
-      accent === "pink"
-        ? "group-hover:text-pink-400"
-        : "group-hover:text-indigo-400";
+    const accentTextHover =
+      accent === "pink" ? "group-hover:text-pink-300" : "group-hover:text-indigo-300";
 
     return (
       <article
-        className={`group rounded-[24px] border p-3 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform ${
-          isDragOver ? "border-indigo-500/60 bg-indigo-500/10 scale-[1.02]" : ""
-        } ${
-          isActive
-            ? "border-indigo-500/40 bg-gradient-to-b from-indigo-500/14 to-white/[0.03] shadow-[0_22px_60px_rgba(79,70,229,0.24)]"
-            : "border-white/10 bg-gradient-to-b from-white/[0.045] to-white/[0.02] hover:-translate-y-1 hover:border-white/20 hover:shadow-[0_18px_50px_rgba(0,0,0,0.26)]"
+        className={`group relative rounded-[26px] p-3 transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform liquid-sheen-on-hover overflow-hidden ${
+          isDragOver ? "scale-[1.03]" : ""
         }`}
+        style={
+          isActive
+            ? {
+                background:
+                  "linear-gradient(160deg, rgba(99,102,241,0.14) 0%, rgba(99,102,241,0.04) 60%, rgba(0,0,0,0.08) 100%)",
+                border: "1px solid rgba(99,102,241,0.35)",
+                boxShadow:
+                  "0 8px 32px rgba(99,102,241,0.22), 0 2px 8px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)",
+              }
+            : isDragOver
+            ? {
+                background: "rgba(99,102,241,0.1)",
+                border: "1px solid rgba(99,102,241,0.5)",
+                boxShadow: "0 0 0 2px rgba(99,102,241,0.2)",
+              }
+            : {
+                background:
+                  "linear-gradient(160deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 60%, rgba(0,0,0,0.06) 100%)",
+                border: "1px solid rgba(255,255,255,0.09)",
+                boxShadow:
+                  "0 4px 16px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.07)",
+                backdropFilter: "blur(16px) saturate(140%)",
+                WebkitBackdropFilter: "blur(16px) saturate(140%)",
+              }
+        }
         draggable={draggable}
         onDragStart={onDragStart}
         onDragOver={onDragOver}
         onDrop={onDrop}
         onDragEnd={onDragEnd}
       >
+        {/* Subtle top highlight */}
+        <div
+          className="absolute top-0 left-0 right-0 h-px rounded-t-[26px] pointer-events-none"
+          style={{
+            background: isActive
+              ? "rgba(99,102,241,0.5)"
+              : "rgba(255,255,255,0.1)",
+          }}
+        />
+
         <button
           onClick={() => {
             if (isAlbum) {
@@ -54,7 +82,7 @@ const MusicCard = React.memo(
             }
             playTrack(track, playableTracks);
           }}
-          className="micro-interact relative w-full aspect-square overflow-hidden rounded-[20px] bg-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/45"
+          className="micro-interact relative w-full aspect-square overflow-hidden rounded-[20px] bg-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40"
         >
           {track.thumbnail ? (
             <img
@@ -70,11 +98,23 @@ const MusicCard = React.memo(
             </div>
           )}
 
-          <div className="absolute inset-0 bg-gradient-to-t from-black/38 via-black/5 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-          <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.22),transparent_26%,transparent_72%,rgba(255,255,255,0.04))] opacity-40 transition-opacity duration-500 group-hover:opacity-70" />
+          {/* Gradient overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/5 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+          {/* Glass sheen */}
+          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.18),transparent_30%,transparent_70%,rgba(255,255,255,0.04))] opacity-35 transition-opacity duration-500 group-hover:opacity-60" />
 
-          <div className="absolute inset-0 flex items-center justify-center opacity-0 scale-90 transition-all duration-500 group-hover:opacity-100 group-hover:scale-100">
-            <div className="h-14 w-14 rounded-full bg-white/10 border border-white/20 backdrop-blur-xl flex items-center justify-center shadow-2xl">
+          {/* Play button */}
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 scale-90 transition-all duration-400 group-hover:opacity-100 group-hover:scale-100">
+            <div
+              className="h-14 w-14 rounded-full flex items-center justify-center shadow-2xl"
+              style={{
+                background: "rgba(255,255,255,0.12)",
+                backdropFilter: "blur(16px)",
+                border: "1px solid rgba(255,255,255,0.25)",
+                boxShadow:
+                  "0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.25)",
+              }}
+            >
               {isActive && isPlaying ? (
                 <Pause className="w-6 h-6 text-white fill-white" />
               ) : isAlbum ? (
@@ -86,9 +126,9 @@ const MusicCard = React.memo(
           </div>
         </button>
 
-        <div className="pt-3 px-1 space-y-1.5">
+        <div className="pt-3 px-1 space-y-1">
           <h3
-            className={`text-sm font-semibold text-white truncate transition-colors ${accentClass}`}
+            className={`text-sm font-semibold text-white/90 truncate transition-colors duration-300 ${accentTextHover}`}
           >
             {track.title}
           </h3>
@@ -102,11 +142,22 @@ const MusicCard = React.memo(
                 toggleFavorite(track);
               }}
               disabled={savingFavoriteId === track._id}
-              className={`micro-interact h-8 w-8 rounded-full border flex items-center justify-center disabled:opacity-50 ${
+              className="micro-interact h-8 w-8 rounded-full flex items-center justify-center disabled:opacity-40 transition-all duration-300"
+              style={
                 isSaved
-                  ? "border-pink-500/50 bg-pink-500/20 text-pink-300 shadow-[0_10px_24px_rgba(236,72,153,0.18)]"
-                  : "border-white/15 bg-white/5 text-neutral-500 hover:text-indigo-200 hover:border-indigo-400/40 hover:bg-white/10"
-              }`}
+                  ? {
+                      background: "rgba(236,72,153,0.18)",
+                      border: "1px solid rgba(236,72,153,0.4)",
+                      boxShadow:
+                        "0 4px 16px rgba(236,72,153,0.2), inset 0 1px 0 rgba(255,255,255,0.1)",
+                      color: "rgb(249,168,212)",
+                    }
+                  : {
+                      background: "rgba(255,255,255,0.04)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      color: "rgba(255,255,255,0.3)",
+                    }
+              }
               title={isSaved ? "Remove from favorites" : "Add to favorites"}
             >
               {savingFavoriteId === track._id ? (
@@ -118,7 +169,11 @@ const MusicCard = React.memo(
           ) : (
             <button
               onClick={() => handleOpenPlaylist(track)}
-              className="micro-interact h-8 rounded-full border border-white/15 bg-white/5 px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-400 hover:text-white hover:border-white/30 hover:bg-white/10"
+              className="micro-interact h-8 rounded-full px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-400 hover:text-white transition-all duration-300"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.09)",
+              }}
             >
               Open
             </button>

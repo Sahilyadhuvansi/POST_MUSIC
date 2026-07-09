@@ -34,14 +34,22 @@ const ProfileUniverseSection = ({
           {[...Array(2)].map((_, i) => (
             <div
               key={i}
-              className="h-28 rounded-[32px] glass-dark animate-pulse border border-white/5"
+              className="h-28 rounded-[32px] animate-pulse shimmer"
+              style={{ border: "1px solid rgba(255,255,255,0.05)" }}
             />
           ))}
         </div>
       ) : universe.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 rounded-[40px] glass border-white/5 border-dashed">
+        <div
+          className="flex flex-col items-center justify-center py-20 rounded-[40px]"
+          style={{
+            background: "rgba(255,255,255,0.02)",
+            backdropFilter: "blur(16px)",
+            border: "1px dashed rgba(255,255,255,0.08)",
+          }}
+        >
           <Disc className="w-10 h-10 text-neutral-800 mb-4 animate-spin-slow" />
-          <p className="text-sm font-bold text-neutral-500 italic">
+          <p className="text-sm font-bold text-neutral-600 italic">
             Universe is silent. Discover music to start your collection.
           </p>
         </div>
@@ -50,11 +58,22 @@ const ProfileUniverseSection = ({
           {universe.map((track) => (
             <div
               key={track._id}
-              className={`group relative p-4 rounded-[32px] border transition-all duration-500 ${
+              className="group relative p-4 rounded-[32px] transition-all duration-500 liquid-sheen-on-hover overflow-hidden"
+              style={
                 currentTrack?._id === track._id
-                  ? "bg-indigo-500/10 border-indigo-500/30"
-                  : "bg-white/[0.02] border-white/5 hover:bg-white/[0.05] hover:border-white/10"
-              }`}
+                  ? {
+                      background: "rgba(99,102,241,0.1)",
+                      border: "1px solid rgba(99,102,241,0.3)",
+                      backdropFilter: "blur(20px)",
+                      boxShadow: "0 4px 20px rgba(99,102,241,0.15), inset 0 1px 0 rgba(255,255,255,0.08)",
+                    }
+                  : {
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid rgba(255,255,255,0.07)",
+                      backdropFilter: "blur(20px)",
+                      boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)",
+                    }
+              }
             >
               <div className="flex items-center gap-5">
                 <div className="relative h-14 w-14 rounded-2xl overflow-hidden shadow-2xl shrink-0">
@@ -66,7 +85,7 @@ const ProfileUniverseSection = ({
                   />
                   <button
                     onClick={() => playTrack(track, universe)}
-                    className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute inset-0 flex items-center justify-center bg-black/45 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                   >
                     {currentTrack?._id === track._id && isPlaying ? (
                       <Pause className="w-5 h-5 text-white fill-white" />
@@ -76,13 +95,17 @@ const ProfileUniverseSection = ({
                   </button>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-xs font-black text-white truncate uppercase italic tracking-tight mb-1">
+                  <h3 className="text-xs font-black text-white/90 truncate uppercase italic tracking-tight mb-1">
                     {track.title}
                   </h3>
                 </div>
                 <button
                   onClick={() => handleDeleteTrack(track._id)}
-                  className="p-3 rounded-2xl border border-white/5 bg-white/5 hover:bg-red-500/20 text-neutral-600 hover:text-red-400 transition-all opacity-0 group-hover:opacity-100"
+                  className="p-3 rounded-2xl text-neutral-600 hover:text-red-400 transition-all duration-300 opacity-0 group-hover:opacity-100 micro-interact"
+                  style={{
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.07)",
+                  }}
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
