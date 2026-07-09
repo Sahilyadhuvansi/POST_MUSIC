@@ -285,26 +285,44 @@ const handlers = {
     let targetSong = null;
 
     if (songId) {
-      targetSong = await Music.findById(songId)
-        .select("youtubeUrl title thumbnailUrl")
-        .lean();
-    } else if (youtubeUrl) {
-      targetSong = {
-        youtubeUrl,
-        title,
-        thumbnailUrl: normalizeText(args?.thumbnailUrl) || null,
-      };
-    } else if (query) {
-      const results = await searchMusicInternal(query, 30);
-      if (!results.length) {
-        return createToolResponse({
-          success: false,
-          action: ACTIONS.LIKE_SONG,
-          message: "No song found.",
-          data: null,
-        });
+      if (songId.startsWith("yt_")) {
+        // YouTube search result — convert yt_ prefix to a YouTube URL
+        const videoId = songId.replace(/^yt_/, "");
+        targetSong = {
+          youtubeUrl: `https://www.youtube.com/watch?v=${videoId}`,
+          title: args?.title || "YouTube Track",
+          thumbnailUrl: args?.thumbnailUrl || null,
+        };
+      } else {
+        try {
+          targetSong = await Music.findById(songId)
+            .select("youtubeUrl title thumbnailUrl")
+            .lean();
+        } catch {
+          // Invalid ObjectId — fall through to youtubeUrl / query paths below
+        }
       }
-      targetSong = results[0];
+    }
+
+    if (!targetSong) {
+      if (youtubeUrl) {
+        targetSong = {
+          youtubeUrl,
+          title,
+          thumbnailUrl: normalizeText(args?.thumbnailUrl) || null,
+        };
+      } else if (query) {
+        const results = await searchMusicInternal(query, 30);
+        if (!results.length) {
+          return createToolResponse({
+            success: false,
+            action: ACTIONS.LIKE_SONG,
+            message: "No song found.",
+            data: null,
+          });
+        }
+        targetSong = results[0];
+      }
     }
 
     if (!targetSong?.youtubeUrl) {

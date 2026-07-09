@@ -31,5 +31,5 @@ module.exports = {
 
   // YouTube Content Constraints
   MIN_TRACK_DURATION_SECONDS: 90,
-  MAX_TRACK_DURATION_SECONDS: 360,
+  MAX_TRACK_DURATION_SECONDS: 600,
 };

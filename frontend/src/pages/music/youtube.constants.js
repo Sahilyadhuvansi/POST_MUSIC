@@ -1,5 +1,5 @@
-export const MIN_TRACK_DURATION_SECONDS = 120; // 2 minutes
-export const MAX_TRACK_DURATION_SECONDS = 360; // 6 minutes
+export const MIN_TRACK_DURATION_SECONDS = 90; // 1.5 minutes
+export const MAX_TRACK_DURATION_SECONDS = 600; // 10 minutes
 
 // Titles containing these instantly discard the video (no score redemption).
 export const HARD_EXCLUDE_KEYWORDS = [
