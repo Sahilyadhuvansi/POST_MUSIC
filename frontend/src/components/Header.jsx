@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../features/auth/AuthContext";
-import { Music, User, LogOut, Menu, X } from "lucide-react";
+import { User, LogOut, Menu, X } from "lucide-react";
 import { DEFAULT_AVATAR } from "../config";
 
 const NavLink = ({
@@ -99,28 +99,7 @@ const Header = () => {
           </span>
         </Link>
 
-        {/* Desktop nav pill */}
-        <div
-          className="hidden md:flex items-center gap-1 p-1 rounded-full"
-          style={{
-            background: "rgba(255,255,255,0.04)",
-            backdropFilter: "blur(20px)",
-            WebkitBackdropFilter: "blur(20px)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            boxShadow:
-              "0 2px 12px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.08)",
-          }}
-        >
-          <NavLink
-            to="/music"
-            icon={Music}
-            isStatic={true}
-            location={location}
-            onClick={closeMobile}
-          >
-            Vibes
-          </NavLink>
-        </div>
+        <div />
 
         {/* Right side */}
         <div className="flex items-center gap-3">
@@ -208,15 +187,6 @@ const Header = () => {
         }}
       >
         <div className="p-6 space-y-2">
-          <NavLink
-            to="/music"
-            icon={Music}
-            isStatic={true}
-            location={location}
-            onClick={closeMobile}
-          >
-            Vibes
-          </NavLink>
           {user ? (
             <>
               <NavLink
