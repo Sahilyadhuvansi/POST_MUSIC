@@ -1,24 +1,11 @@
 "use strict";
 
-// ============================================================================
-// AI SERVICE - Music Discover API
-// ============================================================================
-// Status: Production-hardened with zero-log observability
-// ============================================================================
-
 const Groq = require("groq-sdk");
 const crypto = require("crypto");
-const aiConfig = require("../config/ai.config");
-const { getRedisClient } = require("../utils/redis");
-
+const config = require("../config/ai.config");
 const { analytics } = require("./ai.performance-analytics");
 
-const DAILY_COST_LIMIT = 5.0;
-const MAX_CACHE_SIZE = 100;
-const MAX_PAYLOAD_SIZE = 50000;
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
-
-const SUSPICIOUS_PATTERNS = [
+const INJECTION_PATTERNS = [
   /ignore\s+previous\s+instructions/i,
   /system\s+prompt/i,
   /act\s+as\s+/i,
@@ -26,358 +13,141 @@ const SUSPICIOUS_PATTERNS = [
   /jailbreak/i,
 ];
 
-const ResponseSchema = {
-  JSON_ARRAY: "json_array",
-  JSON_OBJECT: "json_object",
-  PLAIN_TEXT: "plain_text",
-  STRUCTURED_JSON: "structured",
-};
+const MAX_INPUT_LEN = 2000;
 
 class AIService {
   constructor() {
-    if (aiConfig.groq.enabled) {
-      this.groq = new Groq({
-        apiKey: aiConfig.groq.apiKey,
-      });
-    }
+    this._client = config.groq.enabled
+      ? new Groq({ apiKey: config.groq.apiKey })
+      : null;
 
-    this.requestCount = 0;
-    this.totalCost = 0;
-    this.failureLog = [];
-    this.cache = new Map();
-    this.hits = 0;
-    this.misses = 0;
-    this._initRedis();
+    this._cache = new Map();
+    this._cacheTTL = config.agent.cacheTTL;
+    this._cacheMax = 200;
+    this._cost = 0;
+    this._requests = 0;
+    this._hits = 0;
+    this._misses = 0;
   }
 
-  async _initRedis() {
-    this.redis = await getRedisClient();
-  }
-
-  async chat(messages, options = {}) {
+  /**
+   * Send messages to Groq. This is the single interface all agents use.
+   * @param {Array<{role, content}>} messages  Conversation history (user/assistant turns).
+   * @param {string|null}           systemPrompt  Optional system persona.
+   * @param {object}                opts  temperature, maxTokens, expectJSON.
+   */
+  async complete(messages, systemPrompt = null, opts = {}) {
     const {
-      temperature = 0.7,
-      maxTokens = 4096,
-      systemPrompt = null,
-      responseSchema = ResponseSchema.PLAIN_TEXT,
-      strict = false,
-    } = options;
+      temperature = config.groq.temperature,
+      maxTokens = config.groq.maxTokens,
+      expectJSON = false,
+    } = opts;
 
-    const cacheKey = this._generateCacheKey({
-      messages,
-      systemPrompt,
+    this._validateMessages(messages);
+
+    const cacheKey = this._cacheKey({ messages, systemPrompt, temperature });
+    const cached = this._fromCache(cacheKey);
+    if (cached) return { ...cached, cached: true };
+
+    const dailyReport = analytics.getComprehensiveReport();
+    if (parseFloat(dailyReport.summary.totalCost) >= config.agent.dailyCostLimit) {
+      throw new Error("Daily AI budget exhausted. Please try again tomorrow.");
+    }
+
+    if (!this._client) throw new Error("Groq is not configured. Check GROQ_API_KEY.");
+
+    const payload = systemPrompt
+      ? [{ role: "system", content: systemPrompt }, ...messages]
+      : messages;
+
+    const response = await this._client.chat.completions.create({
+      model: config.groq.model,
+      messages: payload,
       temperature,
-      responseSchema,
+      max_tokens: maxTokens,
     });
 
-    try {
-      // --- CACHE LAYER (Redis -> Map -> Fetch) ---
-      let cachedEntry = null;
+    const raw = response.choices[0].message.content ?? "";
+    const content = expectJSON ? this._extractJSON(raw) : raw.trim();
 
-      if (this.redis) {
-        const redisData = await this.redis.get(`ai_cache:${cacheKey}`);
-        if (redisData) {
-          this.recordHit();
-          return JSON.parse(redisData);
-        }
-      } else {
-        cachedEntry = this.cache.get(cacheKey);
-        if (cachedEntry) {
-          if (Date.now() - cachedEntry.timestamp < CACHE_TTL) {
-            this.recordHit();
-            return cachedEntry.value;
-          }
-          this.cache.delete(cacheKey);
-        }
-      }
-      this.recordMiss();
-
-      const validation = this._validateInput(messages);
-      if (!validation.valid) {
-        return this._createErrorResponse(
-          "Invalid input format",
-          validation.error,
-        );
-      }
-
-      const dailyReport = analytics.getComprehensiveReport();
-      const currentDailyCost = parseFloat(dailyReport.summary.totalCost);
-      if (currentDailyCost >= DAILY_COST_LIMIT) {
-        return this._createErrorResponse(
-          "Service quota exceeded",
-          "Daily AI usage limit reached. Circuit breaker active.",
-        );
-      }
-
-      if (!this.groq) {
-        return this._createErrorResponse(
-          "Service unavailable",
-          "Groq API not configured",
-        );
-      }
-
-      const rawResponse = await this._groqChat(
-        messages,
-        systemPrompt,
-        temperature,
-        maxTokens,
-      );
-
-      if (!rawResponse.success) {
-        return rawResponse;
-      }
-
-      const parsed = this._parseResponse(
-        rawResponse.content,
-        responseSchema,
-        strict,
-      );
-
-      const finalResponse = {
-        content: parsed.content,
-        model: "groq",
-        usage: rawResponse.usage,
-        status: "success",
-        parseSuccess: parsed.success,
-      };
-
-      this._setCache(cacheKey, finalResponse);
-      return finalResponse;
-    } catch (error) {
-      this._logFailure("chat", error);
-      return this._createErrorResponse("AI service error", error.message);
-    }
+    this._trackCost(response.usage);
+    const result = { content, raw, model: config.groq.model };
+    this._toCache(cacheKey, result);
+    return result;
   }
 
-  _validateInput(messages) {
-    if (!Array.isArray(messages))
-      return { valid: false, error: "Messages must be an array" };
-    if (messages.length === 0)
-      return { valid: false, error: "Messages array cannot be empty" };
+  // ─── Helpers ────────────────────────────────────────────────────────────────
 
-    for (let msg of messages) {
-      if (!msg.role || !msg.content)
-        return {
-          valid: false,
-          error: "Each message must have role and content",
-        };
-      if (!["user", "assistant", "system"].includes(msg.role))
-        return { valid: false, error: `Invalid role: ${msg.role}` };
-      if (typeof msg.content !== "string")
-        return { valid: false, error: "Message content must be a string" };
+  _validateMessages(messages) {
+    if (!Array.isArray(messages) || !messages.length) {
+      throw new Error("Messages must be a non-empty array.");
     }
-
-    // Only security-check and length-limit the last USER message
-    // (assistant messages in history can be long — don't reject them)
-    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
-    if (lastUserMsg) {
-      let riskScore = 0;
-      for (const pattern of SUSPICIOUS_PATTERNS) {
-        if (pattern.test(lastUserMsg.content)) riskScore += 1;
-      }
-      if (riskScore >= 2)
-        return {
-          valid: false,
-          error: "High-confidence prompt injection detected",
-        };
-      if (lastUserMsg.content.length > 1000)
-        return {
-          valid: false,
-          error: "Message too long (max 1000 chars for AI safety)",
-        };
+    const lastUser = [...messages].reverse().find(m => m.role === "user");
+    if (!lastUser) return;
+    if (lastUser.content.length > MAX_INPUT_LEN) {
+      throw new Error(`Message exceeds ${MAX_INPUT_LEN} character limit.`);
     }
-
-    return { valid: true };
+    const riskHits = INJECTION_PATTERNS.filter(p => p.test(lastUser.content)).length;
+    if (riskHits >= 2) throw new Error("Message contains disallowed content.");
   }
 
-  _parseResponse(text, schema = ResponseSchema.PLAIN_TEXT, strict = false) {
-    const raw = text;
+  _extractJSON(text) {
+    const clean = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const obj = clean.match(/\{[\s\S]*\}/);
+    const arr = clean.match(/\[[\s\S]*\]/);
     try {
-      if (schema === ResponseSchema.JSON_OBJECT) {
-        const json = this._extractJSON(text, "object");
-        if (json === null && strict)
-          throw new Error("Could not extract JSON object from response");
-        return { content: json || {}, success: json !== null, raw };
-      }
-
-      if (schema === ResponseSchema.JSON_ARRAY) {
-        const json = this._extractJSON(text, "array");
-        if (json === null && strict)
-          throw new Error("Could not extract JSON array from response");
-        return { content: json || [], success: json !== null, raw };
-      }
-
-      if (schema === ResponseSchema.STRUCTURED_JSON) {
-        const json = this._extractJSON(text, "object");
-        if (json === null && strict)
-          throw new Error("Could not extract structured JSON from response");
-        return { content: json || {}, success: json !== null, raw };
-      }
-
-      return { content: text.trim(), success: true, raw };
-    } catch (error) {
-      return {
-        content: strict ? null : text.trim(),
-        success: false,
-        error: error.message,
-        raw,
-      };
-    }
-  }
-
-  _extractJSON(text, type = "object") {
-    if (!text || typeof text !== "string") return null;
-
-    let cleaned = text
-      .replace(/```json\n?/g, "")
-      .replace(/```\n?/g, "")
-      .replace(/^```/gm, "")
-      .trim();
-
-    try {
-      if (type === "array") {
-        const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
-        if (arrayMatch) {
-          const parsed = JSON.parse(arrayMatch[0]);
-          if (Array.isArray(parsed)) return parsed;
-        }
-      }
-
-      if (type === "object") {
-        const objectMatch = cleaned.match(/\{[\s\S]*\}/);
-        if (objectMatch) {
-          const parsed = JSON.parse(objectMatch[0]);
-          if (typeof parsed === "object" && !Array.isArray(parsed))
-            return parsed;
-        }
-      }
-
-      const parsed = JSON.parse(cleaned);
-      if (type === "array" && Array.isArray(parsed)) return parsed;
-      if (type === "object" && typeof parsed === "object") return parsed;
+      if (obj) return JSON.parse(obj[0]);
+      if (arr) return JSON.parse(arr[0]);
+      return JSON.parse(clean);
     } catch {
-      // Quietly fail extraction
-    }
-    return null;
-  }
-
-  async _groqChat(messages, systemPrompt, temperature, maxTokens) {
-    try {
-      const formattedMessages = systemPrompt
-        ? [{ role: "system", content: systemPrompt }, ...messages]
-        : messages;
-
-      const response = await this.groq.chat.completions.create({
-        model: aiConfig.groq.model,
-        messages: formattedMessages,
-        temperature,
-        max_tokens: maxTokens,
-      });
-
-      this._trackUsage("groq", response.usage);
-
-      return {
-        success: true,
-        content: response.choices[0].message.content,
-        usage: response.usage,
-      };
-    } catch (error) {
-      this._logFailure("groq_api", error);
-      return { success: false, error: error.message, usage: null };
+      return null;
     }
   }
 
-  _createErrorResponse(title, detail) {
+  _cacheKey(params) {
+    return crypto.createHash("sha256").update(JSON.stringify(params)).digest("hex");
+  }
+
+  _fromCache(key) {
+    const entry = this._cache.get(key);
+    if (!entry) { this._misses++; return null; }
+    if (Date.now() - entry.at > this._cacheTTL) {
+      this._cache.delete(key);
+      this._misses++;
+      return null;
+    }
+    this._hits++;
+    return entry.value;
+  }
+
+  _toCache(key, value) {
+    if (this._cache.size >= this._cacheMax) {
+      this._cache.delete(this._cache.keys().next().value);
+    }
+    this._cache.set(key, { value, at: Date.now() });
+  }
+
+  _trackCost(usage) {
+    this._requests++;
+    const cost = usage
+      ? usage.prompt_tokens * 0.00000005 + usage.completion_tokens * 0.00000015
+      : 0.0001;
+    this._cost += cost;
+    analytics.recordCost("groq", this._cost, usage?.total_tokens ?? 0);
+  }
+
+  stats() {
+    const total = this._hits + this._misses;
     return {
-      content: `Error: ${title}. ${detail}`,
-      model: "error-fallback",
-      usage: null,
-      status: "error",
-      error: { title, detail },
-    };
-  }
-
-  _trackUsage(_provider, usage) {
-    this.requestCount++;
-    if (usage && usage.total_tokens) {
-      const estimatedCost =
-        usage.prompt_tokens * 0.00000005 + usage.completion_tokens * 0.00000015;
-      this.totalCost += estimatedCost;
-    } else {
-      this.totalCost += 0.0001;
-    }
-  }
-
-  _logFailure(component, error) {
-    this.failureLog.push({
-      component,
-      error: error.message,
-      timestamp: new Date(),
-      stack: error.stack,
-    });
-
-    if (this.failureLog.length > 100) this.failureLog.shift();
-  }
-
-  clearFailureLog() {
-    this.failureLog = [];
-  }
-  recordHit() {
-    this.hits++;
-  }
-  recordMiss() {
-    this.misses++;
-  }
-
-  _generateCacheKey(params) {
-    return crypto
-      .createHash("sha256")
-      .update(JSON.stringify(params))
-      .digest("hex");
-  }
-
-  async _setCache(key, value) {
-    if (JSON.stringify(value).length > MAX_PAYLOAD_SIZE) return;
-
-    if (this.redis) {
-      try {
-        await this.redis.set(`ai_cache:${key}`, JSON.stringify(value), {
-          EX: Math.floor(CACHE_TTL / 1000),
-        });
-      } catch {
-        // Silently fail Redis set and use Map fallback
-      }
-    }
-
-    if (this.cache.size >= MAX_CACHE_SIZE) {
-      const firstKey = this.cache.keys().next().value;
-      this.cache.delete(firstKey);
-    }
-    this.cache.set(key, { value, timestamp: Date.now() });
-  }
-
-  getStats() {
-    return {
-      requestCount: this.requestCount,
-      totalCost: this.totalCost.toFixed(4),
-      avgCostPerRequest:
-        this.requestCount > 0
-          ? (this.totalCost / this.requestCount).toFixed(6)
-          : 0,
+      requests: this._requests,
+      cost: this._cost.toFixed(6),
       cache: {
-        size: this.cache.size,
-        hits: this.hits,
-        misses: this.misses,
-        hitRate:
-          this.hits + this.misses > 0
-            ? ((this.hits / (this.hits + this.misses)) * 100).toFixed(2) + "%"
-            : "0%",
+        size: this._cache.size,
+        hitRate: total > 0 ? `${((this._hits / total) * 100).toFixed(1)}%` : "0%",
       },
-      recentFailures: this.failureLog.slice(-5),
-      status: this.groq ? "operational" : "unconfigured",
+      status: this._client ? "operational" : "unconfigured",
     };
   }
 }
 
-const aiService = new AIService();
-module.exports = aiService;
+module.exports = new AIService();

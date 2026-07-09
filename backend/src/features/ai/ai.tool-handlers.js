@@ -5,563 +5,285 @@ const Music = require("../music/music.model");
 const Playlist = require("../playlists/playlists.model");
 const { ensureLikedSongsPlaylist } = require("../music/music.controller");
 
-const ACTIONS = {
-  SEARCH_MUSIC: "search_music",
-  PLAY_SONG: "play_song",
-  FETCH_FAVORITES: "fetch_favorites",
-  LIKE_SONG: "like_song",
-  DELETE_SONG: "delete_song",
-  IMPORT_PLAYLIST: "import_playlist",
-  BATCH_LIKE: "batch_like",
-  RESPOND_NORMALLY: "respond_normally",
-};
+// ─── Response factory ──────────────────────────────────────────────────────────
+const ok = (action, data, message) => ({ success: true, action, data, message });
+const fail = (action, message) => ({ success: false, action, data: null, message });
 
-const TOOL_METRICS = {
-  [ACTIONS.SEARCH_MUSIC]: { success: 0, fail: 0 },
-  [ACTIONS.PLAY_SONG]: { success: 0, fail: 0 },
-  [ACTIONS.FETCH_FAVORITES]: { success: 0, fail: 0 },
-  [ACTIONS.LIKE_SONG]: { success: 0, fail: 0 },
-  [ACTIONS.DELETE_SONG]: { success: 0, fail: 0 },
-  [ACTIONS.IMPORT_PLAYLIST]: { success: 0, fail: 0 },
-  [ACTIONS.BATCH_LIKE]: { success: 0, fail: 0 },
-};
+// ─── Utility helpers ───────────────────────────────────────────────────────────
+const trim = (v = "") => String(v).trim();
 
-const normalizeText = (value = "") => value.toString().trim();
-
-const createToolResponse = ({
-  success,
-  action,
-  data = null,
-  message = "",
-  requiresAuth = false,
-}) => ({
-  success,
-  action,
-  data,
-  message,
-  requiresAuth,
-});
-
-const extractYoutubeUrl = (text = "") => {
-  const match = text.match(
-    /https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be)\/[^\s]+/i,
-  );
-  return match ? match[0] : null;
-};
-
-const extractSpotifyUrl = (text = "") => {
-  const match = text.match(/https?:\/\/(?:open\.)?spotify\.com\/[^\s]+/i);
-  return match ? match[0] : null;
-};
-
-const extractQuotedText = (text = "") => {
-  const match = text.match(/["“](.*?)["”]/);
-  return match?.[1]?.trim() || null;
-};
-
-const hardFallbackAction = (message = "") => {
-  const lowered = normalizeText(message).toLowerCase();
-  const spotifyUrl = extractSpotifyUrl(message);
-  const youtubeUrl = extractYoutubeUrl(message);
-  const isSpotify = /spotify\.com\/(playlist|track)/i.test(message);
-  const isCommand = /^(like|save|delete|remove)/i.test(lowered);
-
-  if (isSpotify && spotifyUrl) {
-    return {
-      action: ACTIONS.IMPORT_PLAYLIST,
-      args: { source: "spotify", url: spotifyUrl },
-      forced: true,
-    };
-  }
-
-  if (/(favorites?|saved songs?|my music|liked songs?)/i.test(lowered)) {
-    return {
-      action: ACTIONS.FETCH_FAVORITES,
-      args: {},
-      forced: true,
-    };
-  }
-
-  if (isCommand && /(save|like|favorite|add)/i.test(lowered) && youtubeUrl) {
-    return {
-      action: ACTIONS.LIKE_SONG,
-      args: {
-        youtubeUrl,
-        title: extractQuotedText(message) || "Imported Favorite",
-      },
-      forced: true,
-    };
-  }
-
-  if (isCommand && /(remove|delete|unfavorite|unlike)/i.test(lowered)) {
-    return {
-      action: ACTIONS.DELETE_SONG,
-      args: { youtubeUrl, title: extractQuotedText(message) },
-      forced: true,
-    };
-  }
-
-  if (/(search|find|show me|look for)/i.test(lowered)) {
-    const query =
-      extractQuotedText(message) ||
-      lowered.replace(/^(search|find|show me|look for)\s+/i, "").trim();
-    return {
-      action: ACTIONS.SEARCH_MUSIC,
-      args: { query, source: "youtube" },
-      forced: true,
-    };
-  }
-
-  if (/^(play|tune in to|listen to)\s+/i.test(lowered)) {
-    const query = lowered
-      .replace(/^(play|tune in to|listen to)\s+/i, "")
-      .trim();
-    return {
-      action: ACTIONS.PLAY_SONG,
-      args: { query },
-      forced: true,
-    };
-  }
-
-  return { action: ACTIONS.RESPOND_NORMALLY, args: {}, forced: false };
-};
-
-const preprocessUserIntent = (message = "") => {
-  return hardFallbackAction(message);
-};
-
-const searchMusicInternal = async (query, limit = 30) => {
+const searchLocal = async (query, limit = 10) => {
   const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const regex = new RegExp(escaped, "i");
-  const exactRegex = new RegExp(`^${escaped}$`, "i");
-
-  const musics = await Music.find({
-    $or: [{ title: regex }, { youtubeUrl: regex }],
+  return Music.find({
+    $or: [
+      { title: new RegExp(escaped, "i") },
+      { youtubeUrl: new RegExp(escaped, "i") },
+    ],
   })
-    .select("youtubeUrl title thumbnailUrl artist createdAt")
+    .select("_id youtubeUrl title thumbnailUrl artist createdAt")
     .sort({ createdAt: -1 })
     .limit(limit)
     .lean();
-
-  return musics.sort((a, b) => {
-    const aExact = exactRegex.test(a.title || "") ? 1 : 0;
-    const bExact = exactRegex.test(b.title || "") ? 1 : 0;
-    if (aExact !== bExact) return bExact - aExact;
-
-    const aStarts = (a.title || "")
-      .toLowerCase()
-      .startsWith(query.toLowerCase())
-      ? 1
-      : 0;
-    const bStarts = (b.title || "")
-      .toLowerCase()
-      .startsWith(query.toLowerCase())
-      ? 1
-      : 0;
-    if (aStarts !== bStarts) return bStarts - aStarts;
-
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-  });
 };
 
+const syncLikedPlaylist = async (userId, song) => {
+  try {
+    const playlist = await ensureLikedSongsPlaylist(userId);
+    const already = (playlist.tracks || []).some(t => t.youtubeUrl === song.youtubeUrl);
+    if (!already) {
+      playlist.tracks.push({
+        youtubeUrl: song.youtubeUrl,
+        title: song.title,
+        thumbnailUrl: song.thumbnailUrl || null,
+        addedAt: new Date(),
+      });
+      await playlist.save();
+    }
+  } catch { /* non-critical — liked songs playlist sync is best-effort */ }
+};
+
+const extractYouTubeUrl = (text = "") => {
+  const m = text.match(/https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be)\/[^\s]+/i);
+  return m?.[0] ?? null;
+};
+
+const extractSpotifyUrl = (text = "") => {
+  const m = text.match(/https?:\/\/(?:open\.)?spotify\.com\/[^\s]+/i);
+  return m?.[0] ?? null;
+};
+
+// ─── Tool handlers ─────────────────────────────────────────────────────────────
+
 const handlers = {
-  [ACTIONS.FETCH_FAVORITES]: async (_args, req) => {
-    const musics = await Music.find({ artist: req.user.id })
-      .select("youtubeUrl title thumbnailUrl artist createdAt")
-      .sort({ createdAt: -1 })
-      .limit(100)
-      .lean();
 
-    return createToolResponse({
-      success: true,
-      action: ACTIONS.FETCH_FAVORITES,
-      message: musics.length
-        ? `Found ${musics.length} favorite tracks.`
-        : "You do not have favorites yet.",
-      data: { musics },
-    });
-  },
+  search_music: async (args) => {
+    const query = trim(args?.query);
+    if (!query) return fail("search_music", "Please tell me what to search for.");
 
-  [ACTIONS.SEARCH_MUSIC]: async (args) => {
-    const query = normalizeText(args?.query);
-    if (!query) {
-      return createToolResponse({
-        success: false,
-        action: ACTIONS.SEARCH_MUSIC,
-        message: "Please tell me what song or artist you want to search.",
-        data: null,
-      });
-    }
+    const [local, yt] = await Promise.all([
+      searchLocal(query, 10),
+      youtubeService.findTracks(query, { maxResults: 15 }).catch(() => []),
+    ]);
 
-    // Phase 1: Local Library Search
-    const localMusics = await searchMusicInternal(query, 10);
-
-    // Phase 2: YouTube Fallback/Expansion
-    let youtubeMusics = [];
-    try {
-      youtubeMusics = await youtubeService.findTracks(query, {
-        maxResults: 15,
-      });
-    } catch {
-      // YouTube quota or network error
-    }
-
-    // Merge and format results
-    // We want to ensure they look similar to the UI expectation
-    const combined = [
-      ...localMusics.map((m) => ({ ...m, source: "library" })),
-      ...youtubeMusics
-        .filter(
-          (yt) => !localMusics.some((l) => l.youtubeUrl === yt.youtubeUrl),
-        )
-        .map((yt) => ({
-          _id: `yt_${yt.videoId}`,
-          songId: `yt_${yt.videoId}`,
-          title: yt.title,
-          youtubeUrl: yt.youtubeUrl,
-          thumbnailUrl: yt.thumbnailUrl || yt.thumbnail,
+    const localUrls = new Set(local.map(m => m.youtubeUrl));
+    const merged = [
+      ...local.map(m => ({ ...m, songId: String(m._id), source: "library" })),
+      ...yt
+        .filter(t => !localUrls.has(t.youtubeUrl))
+        .map(t => ({
+          songId: `yt_${t.videoId}`,
+          title: t.title,
+          youtubeUrl: t.youtubeUrl,
+          thumbnailUrl: t.thumbnailUrl || t.thumbnail || null,
           source: "youtube",
         })),
     ];
 
-    return createToolResponse({
-      success: true,
-      action: ACTIONS.SEARCH_MUSIC,
-      message: combined.length
-        ? `Found ${combined.length} matches for "${query}" (including YouTube).`
-        : `No songs found for "${query}" anywhere.`,
-      data: { query, musics: combined },
-    });
+    return ok(
+      "search_music",
+      { query, musics: merged },
+      merged.length ? `Found ${merged.length} results for "${query}".` : `No results for "${query}".`,
+    );
   },
 
-  [ACTIONS.PLAY_SONG]: async (args) => {
-    const query = normalizeText(args?.query);
-    const youtubeUrl = normalizeText(args?.youtubeUrl);
+  play_song: async (args) => {
+    const query = trim(args?.query);
+    const url = trim(args?.youtubeUrl);
+    if (!query && !url) return fail("play_song", "Which song should I play?");
 
-    if (!query && !youtubeUrl) {
-      return createToolResponse({
-        success: false,
-        action: ACTIONS.PLAY_SONG,
-        message: "Which song should I play?",
-      });
-    }
+    let track = url
+      ? { youtubeUrl: url, title: args?.title || "Requested track", thumbnailUrl: args?.thumbnailUrl || null }
+      : null;
 
-    let track = null;
-    if (youtubeUrl) {
-      track = { youtubeUrl, title: args?.title || "Requested Track" };
-    } else {
-      const results = await youtubeService.findTracks(query, { maxResults: 1 });
+    if (!track) {
+      const results = await youtubeService.findTracks(query, { maxResults: 1 }).catch(() => []);
       if (results.length) {
         track = {
           youtubeUrl: results[0].youtubeUrl,
           title: results[0].title,
-          thumbnailUrl: results[0].thumbnailUrl || results[0].thumbnail,
+          thumbnailUrl: results[0].thumbnailUrl || results[0].thumbnail || null,
         };
       }
     }
 
-    if (!track) {
-      return createToolResponse({
-        success: false,
-        action: ACTIONS.PLAY_SONG,
-        message: `I couldn't find "${query}" to play.`,
-      });
-    }
-
-    return createToolResponse({
-      success: true,
-      action: ACTIONS.PLAY_SONG,
-      message: `Tuning in to: ${track.title} 🎧`,
-      data: { track },
-    });
+    if (!track) return fail("play_song", `Couldn't find "${query}" to play.`);
+    return ok("play_song", { track }, `Playing: ${track.title}`);
   },
 
-  [ACTIONS.LIKE_SONG]: async (args, req) => {
-    const youtubeUrl = normalizeText(args?.youtubeUrl);
-    const songId = normalizeText(args?.songId);
-    const query = normalizeText(args?.query || args?.title);
-    const title = normalizeText(args?.title || "Imported Favorite");
+  fetch_favorites: async (_args, req) => {
+    const musics = await Music.find({ artist: req.user.id })
+      .select("_id youtubeUrl title thumbnailUrl artist createdAt")
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean();
+    const data = musics.map(m => ({ ...m, songId: String(m._id) }));
+    return ok(
+      "fetch_favorites",
+      { musics: data },
+      data.length ? `Found ${data.length} saved tracks.` : "You haven't saved any songs yet.",
+    );
+  },
 
-    let targetSong = null;
+  like_song: async (args, req) => {
+    const { songId, youtubeUrl, query, title = "Saved Track", thumbnailUrl } = args || {};
+    let target = null;
 
     if (songId) {
-      if (songId.startsWith("yt_")) {
-        // YouTube search result — convert yt_ prefix to a YouTube URL
-        const videoId = songId.replace(/^yt_/, "");
-        targetSong = {
-          youtubeUrl: `https://www.youtube.com/watch?v=${videoId}`,
-          title: args?.title || "YouTube Track",
-          thumbnailUrl: args?.thumbnailUrl || null,
+      if (String(songId).startsWith("yt_")) {
+        target = {
+          youtubeUrl: `https://www.youtube.com/watch?v=${songId.replace(/^yt_/, "")}`,
+          title,
+          thumbnailUrl: thumbnailUrl || null,
         };
       } else {
-        try {
-          targetSong = await Music.findById(songId)
-            .select("youtubeUrl title thumbnailUrl")
-            .lean();
-        } catch {
-          // Invalid ObjectId — fall through to youtubeUrl / query paths below
+        target = await Music.findById(songId)
+          .select("youtubeUrl title thumbnailUrl")
+          .lean()
+          .catch(() => null);
+      }
+    }
+
+    if (!target && youtubeUrl) {
+      target = { youtubeUrl, title, thumbnailUrl: thumbnailUrl || null };
+    }
+
+    if (!target && query) {
+      const local = await searchLocal(query, 1);
+      if (local.length) {
+        target = local[0];
+      } else {
+        const yt = await youtubeService.findTracks(query, { maxResults: 1 }).catch(() => []);
+        if (yt.length) {
+          target = { youtubeUrl: yt[0].youtubeUrl, title: yt[0].title, thumbnailUrl: yt[0].thumbnailUrl || null };
         }
       }
     }
 
-    if (!targetSong) {
-      if (youtubeUrl) {
-        targetSong = {
-          youtubeUrl,
-          title,
-          thumbnailUrl: normalizeText(args?.thumbnailUrl) || null,
-        };
-      } else if (query) {
-        const results = await searchMusicInternal(query, 30);
-        if (!results.length) {
-          return createToolResponse({
-            success: false,
-            action: ACTIONS.LIKE_SONG,
-            message: "No song found.",
-            data: null,
-          });
-        }
-        targetSong = results[0];
-      }
+    if (!target?.youtubeUrl) {
+      return fail("like_song", "Please provide a song name or YouTube link to save.");
     }
 
-    if (!targetSong?.youtubeUrl) {
-      return createToolResponse({
-        success: false,
-        action: ACTIONS.LIKE_SONG,
-        message:
-          "Please provide a song query, song id, or YouTube song link to like.",
-        data: null,
-      });
-    }
+    const existing = await Music.findOne({ artist: req.user.id, youtubeUrl: target.youtubeUrl }).lean();
+    if (existing) return ok("like_song", existing, `"${existing.title}" is already in your library.`);
 
-    const existing = await Music.findOne({
+    const saved = await Music.create({
       artist: req.user.id,
-      youtubeUrl: targetSong.youtubeUrl,
-    }).lean();
-    if (existing) {
-      return createToolResponse({
-        success: true,
-        action: ACTIONS.LIKE_SONG,
-        message: `"${existing.title}" is already in your favorites.`,
-        data: existing,
-      });
-    }
-
-    const created = await Music.create({
-      artist: req.user.id,
-      youtubeUrl: targetSong.youtubeUrl,
-      title: normalizeText(targetSong.title || title),
-      thumbnailUrl: targetSong.thumbnailUrl || null,
+      youtubeUrl: target.youtubeUrl,
+      title: trim(target.title || title),
+      thumbnailUrl: target.thumbnailUrl || null,
     });
 
-    // Synchronize with the "Liked Songs" system playlist for UI consistency
-    try {
-      const likedPlaylist = await ensureLikedSongsPlaylist(req.user.id);
-      const exists = (likedPlaylist.tracks || []).some(
-        (t) => t.youtubeUrl === targetSong.youtubeUrl,
-      );
-      if (!exists) {
-        likedPlaylist.tracks.push({
-          youtubeUrl: targetSong.youtubeUrl,
-          title: created.title,
-          thumbnailUrl: created.thumbnailUrl || null,
-          addedAt: new Date(),
-        });
-        await likedPlaylist.save();
-      }
-    } catch {
-      // Sync failed is non-critical for the tools report
-    }
-
-    return createToolResponse({
-      success: true,
-      action: ACTIONS.LIKE_SONG,
-      message: `Liked: "${created.title}" 🎵`,
-      data: created.toObject(),
-    });
+    await syncLikedPlaylist(req.user.id, saved);
+    return ok("like_song", saved.toObject(), `Saved: "${saved.title}"`);
   },
 
-  [ACTIONS.DELETE_SONG]: async (args, req) => {
-    const songId = normalizeText(args?.songId);
-    const youtubeUrl = normalizeText(args?.youtubeUrl);
-    const title = normalizeText(args?.title);
-
+  delete_song: async (args, req) => {
+    const { songId, youtubeUrl, title } = args || {};
     if (!songId && !youtubeUrl && !title) {
-      return createToolResponse({
-        success: false,
-        action: ACTIONS.DELETE_SONG,
-        message:
-          "Tell me the song, or provide song id / title / YouTube URL to remove.",
-        data: null,
-      });
+      return fail("delete_song", "Tell me which song to remove — name, ID, or URL.");
     }
 
     const filter = { artist: req.user.id };
-    if (songId) {
-      filter._id = songId;
-    } else if (youtubeUrl) {
-      filter.youtubeUrl = youtubeUrl;
-    } else {
-      filter.title = new RegExp(
-        title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
-        "i",
-      );
-    }
+    if (songId) filter._id = songId;
+    else if (youtubeUrl) filter.youtubeUrl = youtubeUrl;
+    else filter.title = new RegExp(trim(title).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
 
-    const found = await Music.findOne(filter).lean();
-    if (!found) {
-      return createToolResponse({
-        success: false,
-        action: ACTIONS.DELETE_SONG,
-        message: "I couldn't find that song in your favorites.",
-        data: null,
-      });
-    }
-    const deleted = await Music.findOneAndDelete({
-      _id: found._id,
-      artist: req.user.id,
-    });
+    const song = await Music.findOneAndDelete(filter);
+    if (!song) return fail("delete_song", "Song not found in your library.");
 
-    if (deleted) {
-      // Sync remove from "Liked Songs" playlist
-      try {
-        const likedPlaylist = await Playlist.findOne({
-          owner: req.user.id,
-          kind: "system_liked",
-        });
-        if (likedPlaylist) {
-          likedPlaylist.tracks = likedPlaylist.tracks.filter(
-            (t) => t.youtubeUrl !== deleted.youtubeUrl,
-          );
-          await likedPlaylist.save();
-        }
-      } catch {
-        // Sync fail is non-critical
+    try {
+      const playlist = await Playlist.findOne({ owner: req.user.id, kind: "system_liked" });
+      if (playlist) {
+        playlist.tracks = playlist.tracks.filter(t => t.youtubeUrl !== song.youtubeUrl);
+        await playlist.save();
       }
-    }
+    } catch { /* non-critical */ }
 
-    return createToolResponse({
-      success: !!deleted,
-      action: ACTIONS.DELETE_SONG,
-      message: deleted
-        ? `Removed: "${deleted.title}" from your favorites.`
-        : "Song not found in your favorites.",
-      data: deleted ? deleted.toObject() : null,
-    });
+    return ok("delete_song", song.toObject(), `Removed: "${song.title}"`);
   },
 
-  [ACTIONS.BATCH_LIKE]: async (args, req) => {
+  batch_like: async (args, req) => {
     const tracks = Array.isArray(args?.tracks) ? args.tracks : [];
-    if (!tracks.length) {
-      return createToolResponse({
-        success: false,
-        action: ACTIONS.BATCH_LIKE,
-        message: "No tracks found to process.",
-        data: null,
-      });
-    }
+    if (!tracks.length) return fail("batch_like", "No tracks provided.");
 
-    const userId = req.user.id;
     const results = { saved: [], skipped: [], failed: [] };
 
     for (const t of tracks) {
       try {
-        const query = `${t.title} ${t.artist || ""}`.trim();
-        const yt = await youtubeService.findSingleTrack(query);
-        if (!yt) {
-          results.failed.push({
-            title: t.title,
-            reason: "YouTube link not found",
-          });
-          continue;
-        }
+        const yt = await youtubeService
+          .findSingleTrack(`${t.title} ${t.artist || ""}`.trim())
+          .catch(() => null);
+        if (!yt) { results.failed.push(t.title); continue; }
 
-        const existing = await Music.findOne({
-          artist: userId,
-          youtubeUrl: yt.youtubeUrl,
-        }).lean();
-        if (existing) {
-          results.skipped.push(t.title);
-          continue;
-        }
+        const exists = await Music.findOne({ artist: req.user.id, youtubeUrl: yt.youtubeUrl }).lean();
+        if (exists) { results.skipped.push(t.title); continue; }
 
-        const music = await Music.create({
-          artist: userId,
+        const saved = await Music.create({
+          artist: req.user.id,
           youtubeUrl: yt.youtubeUrl,
           title: yt.title,
           thumbnailUrl: yt.thumbnailUrl || null,
         });
-        results.saved.push(music.title);
-      } catch (e) {
-        results.failed.push({ title: t.title, reason: e.message });
+        results.saved.push(saved.title);
+      } catch {
+        results.failed.push(t.title);
       }
     }
 
-    return createToolResponse({
-      success: true,
-      action: ACTIONS.BATCH_LIKE,
-      message: `Batch complete: Saved ${results.saved.length}, Skipped ${results.skipped.length}, Failed ${results.failed.length}.`,
-      data: results,
-    });
+    return ok(
+      "batch_like",
+      results,
+      `Saved ${results.saved.length}, skipped ${results.skipped.length}, failed ${results.failed.length}.`,
+    );
   },
 
-  [ACTIONS.IMPORT_PLAYLIST]: async (args, _req) => {
-    const url = args?.url || "";
-    return createToolResponse({
-      success: true,
-      action: ACTIONS.IMPORT_PLAYLIST,
-      message:
-        "I've initialized the playlist resolver. Please confirm if you'd like me to start the batch import now.",
-      data: { source: args?.source || "spotify", url },
-    });
+  import_playlist: async (args) => {
+    const { url = "", source = "spotify" } = args || {};
+    return ok(
+      "import_playlist",
+      { url, source },
+      "Playlist import initiated — confirm to start the batch import.",
+    );
   },
 };
 
-const TOOL_REGISTRY = {
-  [ACTIONS.SEARCH_MUSIC]: {
-    handler: handlers[ACTIONS.SEARCH_MUSIC],
+// ─── Tool registry ─────────────────────────────────────────────────────────────
+const TOOLS = {
+  search_music: {
+    description: "Search music by title or artist (local library + YouTube)",
     requiresAuth: false,
-    description:
-      "Search music by title or artists (searches library + YouTube)",
+    handler: handlers.search_music,
   },
-  [ACTIONS.PLAY_SONG]: {
-    handler: handlers[ACTIONS.PLAY_SONG],
+  play_song: {
+    description: "Find and stream a song by title or YouTube URL",
     requiresAuth: false,
-    description: "Find and play a specific song by its title or URL",
+    handler: handlers.play_song,
   },
-  [ACTIONS.FETCH_FAVORITES]: {
-    handler: handlers[ACTIONS.FETCH_FAVORITES],
+  fetch_favorites: {
+    description: "Retrieve the current user's saved songs",
     requiresAuth: true,
-    description: "Fetch the user's favorite songs",
+    handler: handlers.fetch_favorites,
   },
-  [ACTIONS.LIKE_SONG]: {
-    handler: handlers[ACTIONS.LIKE_SONG],
+  like_song: {
+    description: "Save a single song to the user's library",
     requiresAuth: true,
-    description: "Save a YouTube song to favorites",
+    handler: handlers.like_song,
   },
-  [ACTIONS.DELETE_SONG]: {
-    handler: handlers[ACTIONS.DELETE_SONG],
+  delete_song: {
+    description: "Remove a song from the user's library",
     requiresAuth: true,
-    description: "Delete a song from favorites",
+    handler: handlers.delete_song,
   },
-  [ACTIONS.IMPORT_PLAYLIST]: {
-    handler: handlers[ACTIONS.IMPORT_PLAYLIST],
+  batch_like: {
+    description: "Save multiple songs in one batch operation",
     requiresAuth: true,
-    description: "Import playlist from external source (Spotify)",
+    handler: handlers.batch_like,
   },
-  [ACTIONS.BATCH_LIKE]: {
-    handler: handlers[ACTIONS.BATCH_LIKE],
+  import_playlist: {
+    description: "Import a Spotify or YouTube playlist",
     requiresAuth: true,
-    description: "Like and save multiple songs from a list",
+    handler: handlers.import_playlist,
   },
 };
 
-module.exports = {
-  ACTIONS,
-  TOOL_REGISTRY,
-  searchMusicInternal,
-  TOOL_METRICS,
-  preprocessUserIntent,
-  hardFallbackAction,
-};
+module.exports = { TOOLS, searchLocal, extractYouTubeUrl, extractSpotifyUrl };

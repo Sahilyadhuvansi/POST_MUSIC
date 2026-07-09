@@ -1,0 +1,19 @@
+{
+  "appId": "com.musicdiscover.app",
+  "appName": "Music Discover",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#000000"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0,
+      "backgroundColor": "#000000"
+    }
+  }
+}

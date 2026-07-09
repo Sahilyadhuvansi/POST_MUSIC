@@ -1,67 +1,36 @@
 "use strict";
 
-/**
- * AI Service Health Checker
- * (Satisfies ai.test.js requirements)
- */
+const getAIHealth = () => ({
+  status: "ok",
+  timestamp: new Date().toISOString(),
+  uptime: process.uptime(),
+  memory: process.memoryUsage(),
+  service: { name: "AI Service", version: "2.0.0" },
+  groq: { enabled: !!process.env.GROQ_API_KEY, model: "llama-3.1-8b-instant" },
+});
 
-function getAIHealth() {
-  return {
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    service: {
-      name: 'AI Service',
-      version: '1.0.0'
-    },
-    groq: {
-      enabled: !!process.env.GROQ_API_KEY,
-      model: 'llama-3.1-8b-instant'
-    }
-  };
-}
+const getQuickStatus = () => {
+  const h = getAIHealth();
+  return { status: h.status, service: h.service, groq: h.groq };
+};
 
-/**
- * Quick status for general check
- */
-function getQuickStatus() {
-  const health = getAIHealth();
+const getDetailedStatus = () => {
+  const h = getAIHealth();
   return {
-    status: health.status,
-    service: health.service,
-    groq: health.groq
-  };
-}
-
-/**
- * Detailed status for diagnostics
- */
-function getDetailedStatus() {
-  const health = getAIHealth();
-  return {
-    ...health,
-    configuration: {
-      enabled: health.groq.enabled,
-      model: health.groq.model
-    },
+    ...h,
+    configuration: { enabled: h.groq.enabled, model: h.groq.model },
     performance: {
-      uptimeSeconds: Math.floor(health.uptime),
-      memoryMB: Math.floor(health.memory.heapUsed / 1024 / 1024)
+      uptimeSeconds: Math.floor(h.uptime),
+      memoryMB: Math.floor(h.memory.heapUsed / 1024 / 1024),
     },
-    health: health.status,
+    health: h.status,
     issues: [],
-    recommendations: []
   };
-}
+};
 
 module.exports = {
   getAIHealth,
   getQuickStatus,
   getDetailedStatus,
-  healthChecker: {
-    getAIHealth,
-    getQuickStatus,
-    getDetailedStatus
-  }
+  healthChecker: { getAIHealth, getQuickStatus, getDetailedStatus },
 };

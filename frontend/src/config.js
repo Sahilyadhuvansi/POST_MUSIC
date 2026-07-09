@@ -30,8 +30,7 @@ const isPlaceholderEnv =
   !!normalizedEnvApiBase && normalizedEnvApiBase.includes("your-backend-name");
 
 const PRODUCTION_API_FALLBACKS = {
-  // Empty string = use Vercel's /api rewrite proxy (no CORS needed)
-  "music-discover.vercel.app": "https://music-discover.onrender.com",
+  "music-discover.vercel.app": "https://post-music.onrender.com",
 };
 
 const FALLBACK_API_URL = LOCAL_HOSTS.has(FRONTEND_HOST)

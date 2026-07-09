@@ -1,168 +1,56 @@
 "use strict";
 
-// Lightweight per-session AI context memory (in-process)
-const AI_CONTEXT_STORE = new Map();
-const AI_CONTEXT_TTL_MS = 30 * 60 * 1000;
+const config = require("../../config/ai.config");
 
-const LIKE_PATTERNS = /\b(like|save|favorite|add)\b/i;
-const DELETE_PATTERNS = /\b(delete|remove|unlike|discard|unfavorite)\b/i;
-const DEICTIC_ENTITY_PATTERNS = /\b(that one|this song|that song|this one)\b/i;
+// In-process session store keyed by user-id or IP
+const SESSIONS = new Map();
 
-const normalizeText = (value = "") => value.toString().trim();
+const _key = (req) => (req.user?.id ? `u:${req.user.id}` : `ip:${req.ip ?? "anon"}`);
 
-const getAiContextKey = (req) => {
-  if (req.user?.id) return `user:${req.user.id}`;
-  if (req.ip) return `ip:${req.ip}`;
-  return "anon";
-};
-
-const getAiContext = (req) => {
-  const key = getAiContextKey(req);
-  const now = Date.now();
-  const existing = AI_CONTEXT_STORE.get(key);
-
-  if (!existing) {
-    return { key, value: {} };
+const getSession = (req) => {
+  const entry = SESSIONS.get(_key(req));
+  if (!entry || Date.now() - entry.at > config.agent.sessionTTL) {
+    return { lastResults: [], lastResolvedIndex: 0 };
   }
-
-  if (now - existing.updatedAt > AI_CONTEXT_TTL_MS) {
-    AI_CONTEXT_STORE.delete(key);
-    return { key, value: {} };
-  }
-
-  return { key, value: existing.value || {} };
+  return entry.data;
 };
 
-const setAiContext = (req, patch) => {
-  const { key, value } = getAiContext(req);
-  AI_CONTEXT_STORE.set(key, {
-    value: { ...value, ...patch },
-    updatedAt: Date.now(),
-  });
+const setSession = (req, patch) => {
+  const key = _key(req);
+  const current = getSession(req);
+  SESSIONS.set(key, { data: { ...current, ...patch }, at: Date.now() });
 };
 
-const saveLastSearchResults = (req, musics = []) => {
-  const compactResults = musics.slice(0, 30).map((music) => ({
-    songId: String(music._id || music.songId || ""),
-    title: music.title || "Untitled",
-    youtubeUrl: music.youtubeUrl || "",
+const saveSearchResults = (req, musics = []) => {
+  const compact = musics.slice(0, 30).map(m => ({
+    songId: String(m._id || m.songId || ""),
+    title: m.title || "Untitled",
+    youtubeUrl: m.youtubeUrl || "",
   }));
-
-  setAiContext(req, {
-    lastSearchResults: compactResults,
-    lastResolvedIndex: 0,
-  });
+  setSession(req, { lastResults: compact, lastResolvedIndex: 0 });
 };
 
-const getOrdinalIndex = (message = "", resultCount = 0) => {
-  const normalized = normalizeText(message).toLowerCase();
-  const match = normalized.match(
-    /\b(first|second|third|fourth|fifth|last|final|\d+)\b/i,
-  );
-  if (!match) return null;
+const ORDINALS = { first: 0, second: 1, third: 2, fourth: 3, fifth: 4 };
 
-  const token = match[1].toLowerCase();
-  const map = {
-    first: 0,
-    second: 1,
-    third: 2,
-    fourth: 3,
-    fifth: 4,
-    last: resultCount > 0 ? resultCount - 1 : null,
-    final: resultCount > 0 ? resultCount - 1 : null,
-  };
+const resolveOrdinal = (message, session) => {
+  const lower = message.toLowerCase();
+  const m = lower.match(/\b(first|second|third|fourth|fifth|last|\d+)\b/);
+  if (!m) return null;
 
-  if (Object.prototype.hasOwnProperty.call(map, token)) {
-    return map[token];
-  }
+  const token = m[1];
+  if (ORDINALS[token] !== undefined) return ORDINALS[token];
+  if (token === "last") return Math.max(0, (session.lastResults?.length ?? 1) - 1);
 
-  const numeric = Number.parseInt(token, 10);
-  if (Number.isNaN(numeric) || numeric < 1) return null;
-  return numeric - 1;
+  const n = parseInt(token, 10);
+  return Number.isFinite(n) && n >= 1 ? n - 1 : null;
 };
 
-const resolveEntityFromContext = (message = "", aiContext = {}) => {
-  const lastSearchResults = Array.isArray(aiContext.lastSearchResults)
-    ? aiContext.lastSearchResults
-    : [];
-  if (!lastSearchResults.length) return null;
-
-  const lowered = normalizeText(message).toLowerCase();
-  const ordinalIndex = getOrdinalIndex(lowered, lastSearchResults.length);
-  const hasDeicticReference = DEICTIC_ENTITY_PATTERNS.test(lowered);
-
-  let targetIndex = ordinalIndex;
-  if (targetIndex === null && hasDeicticReference) {
-    targetIndex = Number.isInteger(aiContext.lastResolvedIndex)
-      ? aiContext.lastResolvedIndex
-      : 0;
+// Evict stale sessions every 30 minutes
+setInterval(() => {
+  const cutoff = Date.now() - config.agent.sessionTTL;
+  for (const [k, v] of SESSIONS) {
+    if (v.at < cutoff) SESSIONS.delete(k);
   }
+}, config.agent.sessionTTL);
 
-  if (!Number.isInteger(targetIndex) || targetIndex < 0) return null;
-
-  if (targetIndex >= lastSearchResults.length) {
-    return {
-      entity: null,
-      index: targetIndex,
-      errorMessage: "That selection doesn’t exist. Try another number.",
-    };
-  }
-
-  return {
-    entity: lastSearchResults[targetIndex] || null,
-    index: targetIndex,
-    errorMessage: null,
-  };
-};
-
-const resolveContextualAction = (message = "", req) => {
-  const lowered = normalizeText(message).toLowerCase();
-  const { value: aiContext } = getAiContext(req);
-  const resolved = resolveEntityFromContext(lowered, aiContext);
-
-  if (resolved?.errorMessage) {
-    return {
-      errorMessage: resolved.errorMessage,
-      forced: true,
-    };
-  }
-
-  if (!resolved?.entity?.songId) return null;
-
-  const { entity, index } = resolved;
-
-  if (LIKE_PATTERNS.test(lowered)) {
-    setAiContext(req, { lastResolvedIndex: index });
-    return {
-      action: "like_song",
-      args: { songId: entity.songId },
-      forced: true,
-    };
-  }
-
-  if (DELETE_PATTERNS.test(lowered)) {
-    setAiContext(req, { lastResolvedIndex: index });
-    return {
-      action: "delete_song",
-      args: { songId: entity.songId },
-      forced: true,
-    };
-  }
-
-  return null;
-};
-
-const attachInterpretationMessage = (entity, originalMessage = "") => {
-  if (!entity?.title) return null;
-  const raw = normalizeText(originalMessage);
-  if (!raw) return null;
-  return `Interpreted "${raw}" as: "${entity.title}"`;
-};
-
-module.exports = {
-  getAiContext,
-  saveLastSearchResults,
-  resolveEntityFromContext,
-  resolveContextualAction,
-  attachInterpretationMessage,
-};
+module.exports = { getSession, setSession, saveSearchResults, resolveOrdinal };

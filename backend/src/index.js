@@ -30,6 +30,11 @@ const isConfigured = !!process.env.JWT_SECRET && !!process.env.MONGO_URI;
 const allowedOrigins = [
   "https://music-discover.vercel.app", // Definitive Production Origin
   /\.vercel\.app$/, // Any Vercel subdomain (Production/Preview)
+  // Capacitor Android / iOS app origins
+  "capacitor://localhost",
+  "https://localhost",
+  "ionic://localhost",
+  "http://localhost",
   ...(process.env.CORS_ORIGINS || "")
     .split(",")
     .map((o) => o.trim())
@@ -90,7 +95,7 @@ const corsOptions = {
 // ─── App ──────────────────────────────────────────────────────────────────────
 const app = express();
 
-app.set("trust proxy", true); // Fully trust Vercel's proxy chain for IPv4/IPv6 client identification
+app.set("trust proxy", 1); // Trust one hop (Vercel/Render reverse proxy) — prevents IP spoofing
 
 // Connect DB (non-blocking for serverless)
 let dbError = null;
