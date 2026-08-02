@@ -22,6 +22,13 @@ const env = cleanEnv(process.env, {
 
   // IMPORTANT: url() requires a valid URL. Use str() if empty string is an acceptable default.
   IMAGEKIT_URL_ENDPOINT: str({ default: "" }),
+
+  // AI providers (optional — features degrade gracefully when unset)
+  GROQ_API_KEY: str({ default: "" }),
+  GEMINI_API_KEY: str({ default: "" }),
+
+  // Redis (optional — falls back to in-memory stores when unset)
+  REDIS_URL: str({ default: "" }),
 });
 
 module.exports = env;

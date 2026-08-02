@@ -32,11 +32,28 @@ const musicSchema = new mongoose.Schema(
     lastPlayedAt: {
       type: Date,
     },
+    // Title embedding for semantic search (transformers.js, 384-dim).
+    // Excluded from queries by default — fetched only by the embedding service.
+    embedding: {
+      type: [Number],
+      default: undefined,
+      select: false,
+    },
   },
   { timestamps: true },
 );
 
 // Index for list sorting
 musicSchema.index({ createdAt: -1 });
+
+// Best-effort: embed the title after save so semantic search covers new songs.
+// Lazy-required to avoid a circular dependency (embedding.service requires this model).
+musicSchema.post("save", function (doc) {
+  setImmediate(() => {
+    try {
+      require("../../services/embedding.service").ensureMusicEmbedding(doc);
+    } catch { /* non-critical */ }
+  });
+});
 
 module.exports = mongoose.model("Music", musicSchema); // Corrected case

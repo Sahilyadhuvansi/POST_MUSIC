@@ -98,7 +98,7 @@ const FloatingAIButton = () => {
 
           // Render song cards for search / favorites results
           if (
-            (data.action === "search_music" || data.action === "fetch_favorites") &&
+            ["search_music", "semantic_search_music", "fetch_favorites"].includes(data.action) &&
             Array.isArray(data.payload?.musics)
           ) {
             setBrainCtx(prev => ({ ...prev, lastResults: data.payload.musics }));

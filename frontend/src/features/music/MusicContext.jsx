@@ -11,6 +11,8 @@ import {
 import YouTube from "react-youtube";
 import { normalizeYoutubeUrl } from "../../utils/youtube";
 import api from "../../services/api";
+import { useAuth } from "../auth/AuthContext";
+import { useToast } from "../../components/ui/Toast";
 
 const MusicContext = createContext(null);
 
@@ -21,6 +23,8 @@ const extractVideoId = (url) => {
 };
 
 export const MusicProvider = ({ children }) => {
+  const { user } = useAuth();
+  const { addToast } = useToast();
   const [playlist, setPlaylist] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -44,8 +48,18 @@ export const MusicProvider = ({ children }) => {
 
   const playerRef = useRef(null);
   const progressIntervalRef = useRef(null);
+  // Mirrors isPlaying so async callbacks (player events, media session)
+  // can read the latest intent without re-subscribing.
+  const isPlayingRef = useRef(false);
+  // Counts forced background resumes so we stop fighting OS-initiated pauses
+  // (phone calls, audio-focus loss) after a couple of attempts.
+  const resumeAttemptsRef = useRef({ count: 0, lastAt: 0 });
   const currentTrack = playlist[currentIndex] || null;
   const videoId = extractVideoId(currentTrack?.youtubeUrl);
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
   useEffect(() => {
     playerRef.current = null;
@@ -82,6 +96,10 @@ export const MusicProvider = ({ children }) => {
 
   // ─── Favorites API ────────────────────────────────────────────────────────
   const hydrateFavorites = useCallback(async () => {
+    if (!localStorage.getItem("token")) {
+      setSavedByUrl({});
+      return;
+    }
     try {
       const res = await api.get("/music/mine");
       const map = (res.data?.musics || []).reduce((acc, item) => {
@@ -98,13 +116,20 @@ export const MusicProvider = ({ children }) => {
     }
   }, []);
 
+  // Re-hydrate on login, clear on logout (user changes identity)
   useEffect(() => {
     hydrateFavorites();
-  }, [hydrateFavorites]);
+  }, [hydrateFavorites, user?._id, user?.id]);
 
   const toggleFavorite = useCallback(
     async (track) => {
       if (!track?.youtubeUrl) return;
+      // Guests: don't fire an authed request (the 401 interceptor would
+      // hard-redirect to /login mid-playback). Tell them instead.
+      if (!user && !localStorage.getItem("token")) {
+        addToast("Log in to save favorites.", "info");
+        return;
+      }
       setSavingFavoriteId(track._id);
       try {
         const url = normalizeYoutubeUrl(track.youtubeUrl);
@@ -142,12 +167,12 @@ export const MusicProvider = ({ children }) => {
           }
         }
       } catch {
-        // Silent fail
+        addToast("Could not update favorites. Try again.", "error");
       } finally {
         setSavingFavoriteId(null);
       }
     },
-    [savedByUrl],
+    [savedByUrl, user, addToast],
   );
 
   const isTrackFavorited = useCallback(
@@ -468,6 +493,30 @@ export const MusicProvider = ({ children }) => {
           // Duration fetch can fail
         }
       } else if (event.data === 2) {
+        // Background keep-alive: when the screen locks or the app is
+        // backgrounded, the browser/WebView pauses the YouTube iframe even
+        // though the user never pressed pause. If we still intend to play
+        // and the page is hidden, resume instead of accepting the pause.
+        //
+        // But OS-initiated pauses (phone call, audio-focus loss) look the
+        // same and REPEAT: the OS re-pauses right after every forced resume.
+        // Cap attempts — if a pause recurs shortly after a forced resume
+        // more than twice, accept it so we don't un-pause over a call.
+        if (isPlayingRef.current && document.visibilityState === "hidden") {
+          const now = Date.now();
+          const attempts = resumeAttemptsRef.current;
+          if (now - attempts.lastAt > 15000) attempts.count = 0; // fresh pause episode
+          if (attempts.count < 2) {
+            attempts.count += 1;
+            attempts.lastAt = now;
+            try {
+              event.target.playVideo();
+              return;
+            } catch {
+              // Resume failed — fall through to normal pause handling
+            }
+          }
+        }
         setIsPlaying(false);
         stopProgressPolling();
       } else if (event.data === 0) {
@@ -476,6 +525,87 @@ export const MusicProvider = ({ children }) => {
     },
     [duration, startProgressPolling, stopProgressPolling, playNext],
   );
+
+  // ─── Background Playback (Media Session API) ─────────────────────────────
+  // Lock-screen / notification controls + tells the OS this page is playing
+  // media so it keeps the audio alive in the background.
+  useEffect(() => {
+    if (!("mediaSession" in navigator) || !currentTrack) return;
+
+    navigator.mediaSession.metadata = new window.MediaMetadata({
+      title: currentTrack.title || "Unknown Track",
+      artist: currentTrack.artist?.username || "MusicDiscover",
+      artwork: (currentTrack.thumbnail || currentTrack.thumbnailUrl)
+        ? [
+            {
+              src: currentTrack.thumbnail || currentTrack.thumbnailUrl,
+              sizes: "320x180",
+              type: "image/jpeg",
+            },
+          ]
+        : [],
+    });
+    navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
+  }, [currentTrack, isPlaying]);
+
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+
+    const handlers = [
+      ["play", () => setIsPlaying(true)],
+      ["pause", () => setIsPlaying(false)],
+      ["previoustrack", () => playPrevious()],
+      ["nexttrack", () => playNext(true)],
+      [
+        "seekto",
+        (details) => {
+          if (Number.isFinite(details.seekTime)) setCurrentTime(details.seekTime);
+        },
+      ],
+    ];
+
+    for (const [action, handler] of handlers) {
+      try {
+        navigator.mediaSession.setActionHandler(action, handler);
+      } catch {
+        // Action not supported on this platform
+      }
+    }
+
+    return () => {
+      for (const [action] of handlers) {
+        try {
+          navigator.mediaSession.setActionHandler(action, null);
+        } catch {
+          // ignore
+        }
+      }
+    };
+  }, [playNext, playPrevious, setCurrentTime]);
+
+  // When the page becomes hidden mid-playback, nudge the player to keep
+  // going (some WebViews pause the iframe on visibilitychange). Respects
+  // the same attempt cap as the keep-alive above so we don't force-resume
+  // during a phone call / audio-focus loss.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (
+        document.visibilityState === "hidden" &&
+        isPlayingRef.current &&
+        playerRef.current
+      ) {
+        const attempts = resumeAttemptsRef.current;
+        if (Date.now() - attempts.lastAt <= 15000 && attempts.count >= 2) return;
+        try {
+          playerRef.current.playVideo?.();
+        } catch {
+          // ignore
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
 
   return (
     <MusicContext.Provider

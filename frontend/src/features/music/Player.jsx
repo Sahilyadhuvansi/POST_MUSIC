@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -53,7 +54,11 @@ const fmt = (seconds) => {
 const BottomSheet = memo(({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-[1400] lg:hidden" aria-modal="true" role="dialog">
+    <div
+      className="fixed inset-0 z-[1400] lg:hidden"
+      aria-modal="true"
+      role="dialog"
+    >
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
@@ -62,11 +67,13 @@ const BottomSheet = memo(({ isOpen, onClose, title, children }) => {
         className="absolute bottom-0 left-0 right-0 flex max-h-[78vh] flex-col overflow-hidden rounded-t-[28px] animate-slide-up"
         style={{
           paddingBottom: "env(safe-area-inset-bottom, 1.25rem)",
-          background: "linear-gradient(180deg, rgba(12,12,22,0.9), rgba(5,5,12,0.96))",
+          background:
+            "linear-gradient(180deg, rgba(12,12,22,0.9), rgba(5,5,12,0.96))",
           backdropFilter: "blur(48px) saturate(180%)",
           WebkitBackdropFilter: "blur(48px) saturate(180%)",
           borderTop: "1px solid rgba(255,255,255,0.1)",
-          boxShadow: "0 -16px 64px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)",
+          boxShadow:
+            "0 -16px 64px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)",
         }}
       >
         {/* Handle */}
@@ -110,7 +117,11 @@ const QueueList = memo(({ playlist, currentTrack }) =>
           >
             <div className="h-10 w-10 flex-shrink-0 overflow-hidden rounded-lg bg-neutral-800">
               {track.thumbnail ? (
-                <img src={track.thumbnail} alt="" className="h-full w-full object-cover" />
+                <img
+                  src={track.thumbnail}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
               ) : (
                 <div className="flex h-full w-full items-center justify-center">
                   <MusicIcon className="h-4 w-4 text-neutral-600" />
@@ -118,7 +129,9 @@ const QueueList = memo(({ playlist, currentTrack }) =>
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <p className={`truncate text-sm font-semibold ${active ? "text-white" : "text-neutral-300"}`}>
+              <p
+                className={`truncate text-sm font-semibold ${active ? "text-white" : "text-neutral-300"}`}
+              >
                 {track.title}
               </p>
               <p className="truncate text-xs text-neutral-500">
@@ -131,7 +144,11 @@ const QueueList = memo(({ playlist, currentTrack }) =>
                   <div
                     key={b}
                     className="w-0.5 animate-bounce rounded-full bg-indigo-400"
-                    style={{ height: h + 4, animationDelay: `${b * 0.15}s`, animationDuration: "0.8s" }}
+                    style={{
+                      height: h + 4,
+                      animationDelay: `${b * 0.15}s`,
+                      animationDuration: "0.8s",
+                    }}
                   />
                 ))}
               </div>
@@ -140,7 +157,7 @@ const QueueList = memo(({ playlist, currentTrack }) =>
         );
       })}
     </div>
-  )
+  ),
 );
 
 // ─── SleepOptions ─────────────────────────────────────────────────────────────
@@ -258,7 +275,11 @@ const Player = () => {
   // ── End-of-song sleep ──────────────────────────────────────────────────────
   useEffect(() => {
     const id = currentTrack?._id || null;
-    if (sleepMode === "end" && prevTrackIdRef.current && prevTrackIdRef.current !== id) {
+    if (
+      sleepMode === "end" &&
+      prevTrackIdRef.current &&
+      prevTrackIdRef.current !== id
+    ) {
       pause();
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSleepMode(null);
@@ -320,13 +341,171 @@ const Player = () => {
   }, []);
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
+  // (defined after the back-button section below so `minimizePlayer` exists)
+
+  // ── Back button minimizes the expanded player ─────────────────────────────
+  // Push a history entry when expanding so hardware/browser back pops it and
+  // minimizes instead of leaving the page. When the player is minimized any
+  // other way (chevron, swipe-down, Escape), only pop the entry if the current
+  // history state still belongs to the active expansion instance.
+  const backHandledRef = useRef(false);
+  const activeHistoryEntryRef = useRef(null);
+  const expansionGenerationRef = useRef(0);
+  // history.back() is async — track in-flight cleanup pops so a rapid
+  // re-expand can't push a fresh entry that the stale pop then eats.
+  const pendingBacksRef = useRef(0);
+  const deferredPushRef = useRef(null);
+  const isExpandedRef = useRef(false);
+  useLayoutEffect(() => {
+    isExpandedRef.current = isExpanded;
+  }, [isExpanded]);
+
+  useEffect(() => {
+    // Mounted once, so it's registered before any expansion popstate handler
+    // (those are only added on expand) and runs first on each dispatch.
+    // Attributes popstates caused by our own cleanup back() and performs any
+    // push that was deferred behind them.
+    const drain = (event) => {
+      if (pendingBacksRef.current === 0) return;
+      pendingBacksRef.current--;
+      // Mark this dispatch as our own cleanup pop so the expansion popstate
+      // handler (which runs after us) ignores it. The flag lives on the
+      // event object, so it's scoped to exactly this dispatch.
+      if (event) event.__playerCleanupPop = true;
+      if (pendingBacksRef.current > 0) return;
+      if (deferredPushRef.current) {
+        const { entryId, generation } = deferredPushRef.current;
+        deferredPushRef.current = null;
+        if (activeHistoryEntryRef.current === entryId) {
+          window.history.pushState(
+            { modal: "player-expanded", entryId, generation },
+            "",
+          );
+        }
+      } else if (isExpandedRef.current && !activeHistoryEntryRef.current) {
+        // Minimize + re-expand landed in one React batch: isExpanded never
+        // toggled, so the expansion effect didn't re-run and no entry exists
+        // for the current expanded state. Recreate it now that the pop landed.
+        const generation = expansionGenerationRef.current + 1;
+        expansionGenerationRef.current = generation;
+        const entryId = `player-expanded:${generation}:${Date.now()}`;
+        activeHistoryEntryRef.current = entryId;
+        window.history.pushState(
+          { modal: "player-expanded", entryId, generation },
+          "",
+        );
+        backHandledRef.current = false;
+      }
+    };
+    window.addEventListener("popstate", drain);
+    return () => window.removeEventListener("popstate", drain);
+  }, []);
+
+  const minimizePlayer = useCallback(() => {
+    if (backHandledRef.current) return;
+
+    const currentState = window.history.state;
+    const entryId = activeHistoryEntryRef.current;
+    const generation = expansionGenerationRef.current;
+
+    backHandledRef.current = true;
+    activeHistoryEntryRef.current = null;
+    deferredPushRef.current = null; // cancel any not-yet-pushed entry
+
+    setIsExpanded(false);
+    setShowQueueSheet(false);
+    setShowSleepSheet(false);
+
+    if (
+      entryId &&
+      currentState?.modal === "player-expanded" &&
+      currentState?.generation === generation &&
+      currentState?.entryId === entryId
+    ) {
+      pendingBacksRef.current++;
+      window.history.back();
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!isExpanded) return;
+
+    const generation = expansionGenerationRef.current + 1;
+    expansionGenerationRef.current = generation;
+
+    const entryId = `player-expanded:${generation}:${Date.now()}`;
+    activeHistoryEntryRef.current = entryId;
+    const currentState = window.history.state;
+    if (pendingBacksRef.current > 0) {
+      // A cleanup back() is still in flight — the current entry is about to
+      // be popped. Pushing now would let that pop eat the fresh entry, so
+      // defer the push until the pop lands (handled in the drain listener).
+      deferredPushRef.current = { entryId, generation };
+    } else {
+      const historyAction =
+        currentState?.modal === "player-expanded"
+          ? window.history.replaceState.bind(window.history)
+          : window.history.pushState.bind(window.history);
+      historyAction({ modal: "player-expanded", entryId, generation }, "");
+    }
+    backHandledRef.current = false;
+
+    const h = (event) => {
+      if (backHandledRef.current) return;
+      if (event?.__playerCleanupPop) return; // our own cleanup pop, not user Back
+
+      const state = event?.state ?? window.history.state;
+      const entryId = activeHistoryEntryRef.current;
+      const generation = expansionGenerationRef.current;
+      const isStaleModalEntry =
+        state?.modal === "player-expanded" &&
+        (state?.generation !== generation || state?.entryId !== entryId);
+      if (isStaleModalEntry) return;
+
+      backHandledRef.current = true;
+      activeHistoryEntryRef.current = null;
+      setIsExpanded(false);
+      setShowQueueSheet(false);
+      setShowSleepSheet(false);
+    };
+    window.addEventListener("popstate", h);
+    return () => {
+      window.removeEventListener("popstate", h);
+      // If the player is deactivating without minimizePlayer() or the popstate
+      // handler having run (a direct setIsExpanded(false), or unmount while
+      // expanded), our history entry is still on the stack — pop it here so
+      // the next Back doesn't just re-minimize an already-minimized player.
+      if (!backHandledRef.current) {
+        const state = window.history.state;
+        const staleEntryId = activeHistoryEntryRef.current;
+        if (
+          staleEntryId &&
+          state?.modal === "player-expanded" &&
+          state?.entryId === staleEntryId
+        ) {
+          backHandledRef.current = true;
+          activeHistoryEntryRef.current = null;
+          pendingBacksRef.current++;
+          window.history.back();
+        }
+      }
+    };
+  }, [isExpanded]);
+
+  // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   useEffect(() => {
     const h = (e) => {
       // Never fire when user is typing in an input/textarea
       const tag = document.activeElement?.tagName;
-      const isTyping = tag === "INPUT" || tag === "TEXTAREA" || document.activeElement?.isContentEditable;
+      const isTyping =
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        document.activeElement?.isContentEditable;
 
-      if (e.key === "Escape") { setIsExpanded(false); return; }
+      if (e.key === "Escape") {
+        minimizePlayer();
+        return;
+      }
       if (isTyping) return;
 
       if (e.key === " " || e.code === "Space") {
@@ -344,22 +523,26 @@ const Player = () => {
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [togglePlay, seek, progressValue, duration, volume, setVolume]);
-
-  useEffect(() => {
-    if (!isExpanded) return;
-    if (!window.history.state?.modal) {
-      window.history.pushState({ modal: "player-expanded" }, "");
-    }
-    const h = () => setIsExpanded(false);
-    window.addEventListener("popstate", h);
-    return () => window.removeEventListener("popstate", h);
-  }, [isExpanded]);
+  }, [
+    togglePlay,
+    seek,
+    progressValue,
+    duration,
+    volume,
+    setVolume,
+    minimizePlayer,
+  ]);
 
   // ── Scroll lock ────────────────────────────────────────────────────────────
   useEffect(() => {
-    document.body.classList.toggle("has-mini-player", !!currentTrack && !isExpanded);
-    document.body.classList.toggle("has-expanded-player", !!currentTrack && isExpanded);
+    document.body.classList.toggle(
+      "has-mini-player",
+      !!currentTrack && !isExpanded,
+    );
+    document.body.classList.toggle(
+      "has-expanded-player",
+      !!currentTrack && isExpanded,
+    );
     if (currentTrack && isExpanded) {
       const y = window.scrollY;
       Object.assign(document.body.style, {
@@ -387,7 +570,10 @@ const Player = () => {
 
   // ── Touch gestures — expanded player ───────────────────────────────────────
   const onExpandedTouchStart = useCallback((e) => {
-    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    touchStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+    };
     dragActiveRef.current = false;
   }, []);
 
@@ -400,24 +586,27 @@ const Player = () => {
     }
   }, []);
 
-  const onExpandedTouchEnd = useCallback((e) => {
-    const ex = e.changedTouches[0].clientX;
-    const ey = e.changedTouches[0].clientY;
-    const dy = ey - touchStartRef.current.y;
-    const dx = ex - touchStartRef.current.x;
-    const adx = Math.abs(dx);
-    const ady = Math.abs(dy);
+  const onExpandedTouchEnd = useCallback(
+    (e) => {
+      const ex = e.changedTouches[0].clientX;
+      const ey = e.changedTouches[0].clientY;
+      const dy = ey - touchStartRef.current.y;
+      const dx = ex - touchStartRef.current.x;
+      const adx = Math.abs(dx);
+      const ady = Math.abs(dy);
 
-    if (dragActiveRef.current) {
-      if (dy > SWIPE_DOWN_THRESHOLD) setIsExpanded(false);
-    } else if (adx > SWIPE_H_THRESHOLD && adx > ady * 1.4) {
-      if (dx < -SWIPE_H_THRESHOLD) playNext(true);
-      else playPrevious();
-    }
+      if (dragActiveRef.current) {
+        if (dy > SWIPE_DOWN_THRESHOLD) minimizePlayer();
+      } else if (adx > SWIPE_H_THRESHOLD && adx > ady * 1.4) {
+        if (dx < -SWIPE_H_THRESHOLD) playNext(true);
+        else playPrevious();
+      }
 
-    setDragY(0);
-    dragActiveRef.current = false;
-  }, [playNext, playPrevious]);
+      setDragY(0);
+      dragActiveRef.current = false;
+    },
+    [playNext, playPrevious, minimizePlayer],
+  );
 
   // ── Touch gestures — mini player (swipe-up to expand) ─────────────────────
   const onMiniTouchStart = useCallback((e) => {
@@ -438,7 +627,6 @@ const Player = () => {
     if (!currentTrack?.youtubeUrl) return false;
     return !!savedByUrl[currentTrack.youtubeUrl];
   }, [currentTrack, savedByUrl]);
-
 
   const sleepActive = !!sleepMode;
   const sleepLabel =
@@ -474,25 +662,36 @@ const Player = () => {
           onClose={() => setShowSleepSheet(false)}
           title="Sleep timer"
         >
-          <SleepOptions sleepActive={sleepActive} sleepLabel={sleepLabel} onSelect={handleSleepSelect} onCancel={cancelSleep} />
+          <SleepOptions
+            sleepActive={sleepActive}
+            sleepLabel={sleepLabel}
+            onSelect={handleSleepSelect}
+            onCancel={cancelSleep}
+          />
         </BottomSheet>
 
-        <div className="fixed inset-0 z-[1300]" role="dialog" aria-modal="true" aria-label="Music Player">
-
+        <div
+          className="fixed inset-0 z-[1300]"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Music Player"
+        >
           {/* ── Desktop: backdrop + centered modal ─── */}
           <div
             className="absolute inset-0 hidden bg-black/50 backdrop-blur-[32px] lg:block"
-            onClick={() => setIsExpanded(false)}
+            onClick={minimizePlayer}
           />
           <div className="absolute inset-0 hidden overflow-y-auto lg:flex items-start justify-center py-5 px-4">
             <div
               className="pointer-events-auto relative my-auto w-full max-w-5xl overflow-hidden rounded-[32px] flex flex-col max-h-[calc(100vh-2.5rem)]"
               style={{
-                background: "linear-gradient(160deg, rgba(12,12,20,0.88), rgba(5,5,10,0.94))",
+                background:
+                  "linear-gradient(160deg, rgba(12,12,20,0.88), rgba(5,5,10,0.94))",
                 backdropFilter: "blur(48px) saturate(180%)",
                 WebkitBackdropFilter: "blur(48px) saturate(180%)",
                 border: "1px solid rgba(255,255,255,0.1)",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 40px 160px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.12)",
+                boxShadow:
+                  "0 8px 32px rgba(0,0,0,0.5), 0 40px 160px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.12)",
               }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -502,7 +701,7 @@ const Player = () => {
               {/* Top bar */}
               <div className="relative flex items-center justify-between border-b border-white/5 px-6 py-4">
                 <button
-                  onClick={() => setIsExpanded(false)}
+                  onClick={minimizePlayer}
                   className="micro-interact flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-neutral-400 hover:bg-white/10 hover:text-white"
                   aria-label="Minimize"
                 >
@@ -522,12 +721,21 @@ const Player = () => {
                 <div className="relative flex items-center justify-center bg-gradient-to-br from-white/[0.05] via-neutral-950 to-black p-10">
                   <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(99,102,241,0.22),transparent_46%)]" />
                   {coverArt && (
-                    <img src={coverArt} alt="" aria-hidden className="pointer-events-none absolute inset-0 h-full w-full scale-125 object-cover opacity-[0.18] blur-3xl saturate-150" />
+                    <img
+                      src={coverArt}
+                      alt=""
+                      aria-hidden
+                      className="pointer-events-none absolute inset-0 h-full w-full scale-125 object-cover opacity-[0.18] blur-3xl saturate-150"
+                    />
                   )}
                   <div className="relative w-full max-w-[400px]">
                     <div className="aspect-square overflow-hidden rounded-[28px] border border-white/10 bg-neutral-900 shadow-[0_28px_100px_rgba(0,0,0,0.6)]">
                       {coverArt ? (
-                        <img src={coverArt} alt={trackTitle} className="h-full w-full object-cover" />
+                        <img
+                          src={coverArt}
+                          alt={trackTitle}
+                          className="h-full w-full object-cover"
+                        />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center">
                           <MusicIcon className="h-20 w-20 text-neutral-700" />
@@ -547,28 +755,53 @@ const Player = () => {
                 <div className="relative flex flex-col gap-5 p-6 sm:p-8 overflow-y-auto">
                   <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
 
-                  <SeekBar progress={progressValue} onSeek={seek} elapsed={elapsedTime} total={totalDuration} />
+                  <SeekBar
+                    progress={progressValue}
+                    onSeek={seek}
+                    elapsed={elapsedTime}
+                    total={totalDuration}
+                  />
 
                   {/* Playback controls */}
                   <div className="flex items-center justify-center gap-4 sm:gap-5">
-                    <button onClick={() => setShuffleEnabled((p) => !p)}
-                      className={`micro-interact rounded-full border p-2.5 transition-all ${shuffleEnabled ? "border-indigo-500/40 bg-indigo-500/15 text-indigo-400" : "border-white/10 bg-white/[0.04] text-neutral-500 hover:bg-white/[0.08] hover:text-white"}`}>
+                    <button
+                      onClick={() => setShuffleEnabled((p) => !p)}
+                      className={`micro-interact rounded-full border p-2.5 transition-all ${shuffleEnabled ? "border-indigo-500/40 bg-indigo-500/15 text-indigo-400" : "border-white/10 bg-white/[0.04] text-neutral-500 hover:bg-white/[0.08] hover:text-white"}`}
+                    >
                       <Shuffle className="h-4 w-4" />
                     </button>
-                    <button onClick={playPrevious} disabled={playlist.length <= 1}
-                      className="micro-interact rounded-full border border-white/10 bg-white/[0.04] p-4 text-neutral-400 hover:bg-white/[0.08] hover:text-white disabled:opacity-25">
+                    <button
+                      onClick={playPrevious}
+                      disabled={playlist.length <= 1}
+                      className="micro-interact rounded-full border border-white/10 bg-white/[0.04] p-4 text-neutral-400 hover:bg-white/[0.08] hover:text-white disabled:opacity-25"
+                    >
                       <SkipBack className="h-5 w-5 fill-current" />
                     </button>
-                    <button onClick={togglePlay}
-                      className="micro-interact flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full bg-white text-black shadow-[0_0_56px_rgba(255,255,255,0.2)] hover:shadow-[0_0_72px_rgba(255,255,255,0.28)]">
-                      {isPlaying ? <Pause className="h-7 w-7 fill-current" /> : <Play className="ml-1 h-7 w-7 fill-current" />}
+                    <button
+                      onClick={togglePlay}
+                      className="micro-interact flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full bg-white text-black shadow-[0_0_56px_rgba(255,255,255,0.2)] hover:shadow-[0_0_72px_rgba(255,255,255,0.28)]"
+                    >
+                      {isPlaying ? (
+                        <Pause className="h-7 w-7 fill-current" />
+                      ) : (
+                        <Play className="ml-1 h-7 w-7 fill-current" />
+                      )}
                     </button>
-                    <button onClick={() => playNext(true)} disabled={playlist.length <= 1}
-                      className="micro-interact rounded-full border border-white/10 bg-white/[0.04] p-4 text-neutral-400 hover:bg-white/[0.08] hover:text-white disabled:opacity-25">
+                    <button
+                      onClick={() => playNext(true)}
+                      disabled={playlist.length <= 1}
+                      className="micro-interact rounded-full border border-white/10 bg-white/[0.04] p-4 text-neutral-400 hover:bg-white/[0.08] hover:text-white disabled:opacity-25"
+                    >
                       <SkipForward className="h-5 w-5 fill-current" />
                     </button>
-                    <button onClick={() => setRepeatMode((m) => m === "off" ? "all" : m === "all" ? "one" : "off")}
-                      className={`micro-interact rounded-full border p-2.5 transition-all ${repeatMode !== "off" ? "border-indigo-500/40 bg-indigo-500/15 text-indigo-400" : "border-white/10 bg-white/[0.04] text-neutral-500 hover:bg-white/[0.08] hover:text-white"}`}>
+                    <button
+                      onClick={() =>
+                        setRepeatMode((m) =>
+                          m === "off" ? "all" : m === "all" ? "one" : "off",
+                        )
+                      }
+                      className={`micro-interact rounded-full border p-2.5 transition-all ${repeatMode !== "off" ? "border-indigo-500/40 bg-indigo-500/15 text-indigo-400" : "border-white/10 bg-white/[0.04] text-neutral-500 hover:bg-white/[0.08] hover:text-white"}`}
+                    >
                       <RepeatIcon className="h-4 w-4" />
                     </button>
                   </div>
@@ -576,27 +809,40 @@ const Player = () => {
                   {/* Like + Sleep row */}
                   <div className="flex items-center justify-center gap-3">
                     <button
-                      onClick={() => currentTrack && toggleFavorite(currentTrack)}
+                      onClick={() =>
+                        currentTrack && toggleFavorite(currentTrack)
+                      }
                       disabled={savingFavoriteId === currentTrack?._id}
                       className={`micro-interact flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold transition-all ${isFavorited ? "border-pink-500/50 bg-pink-500/15 text-pink-300" : "border-white/10 bg-white/[0.04] text-neutral-400 hover:bg-white/[0.08] hover:text-white"}`}
                     >
-                      {savingFavoriteId === currentTrack?._id
-                        ? <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                        : <Heart className={`h-3.5 w-3.5 ${isFavorited ? "fill-current" : ""}`} />}
+                      {savingFavoriteId === currentTrack?._id ? (
+                        <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                      ) : (
+                        <Heart
+                          className={`h-3.5 w-3.5 ${isFavorited ? "fill-current" : ""}`}
+                        />
+                      )}
                       {isFavorited ? "Saved" : "Save"}
                     </button>
 
                     {/* Desktop sleep dropdown */}
                     <div className="relative" ref={sleepMenuRef}>
                       {sleepActive ? (
-                        <button onClick={cancelSleep}
-                          className="micro-interact flex items-center gap-2 rounded-full border border-amber-500/40 bg-amber-500/15 px-4 py-2 text-xs font-semibold text-amber-300">
-                          <Timer className="h-3.5 w-3.5" />{sleepLabel}<X className="h-3 w-3" />
+                        <button
+                          onClick={cancelSleep}
+                          className="micro-interact flex items-center gap-2 rounded-full border border-amber-500/40 bg-amber-500/15 px-4 py-2 text-xs font-semibold text-amber-300"
+                        >
+                          <Timer className="h-3.5 w-3.5" />
+                          {sleepLabel}
+                          <X className="h-3 w-3" />
                         </button>
                       ) : (
-                        <button onClick={() => setShowSleepMenu((p) => !p)}
-                          className="micro-interact flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-neutral-400 hover:bg-white/[0.08] hover:text-white">
-                          <Timer className="h-3.5 w-3.5" />Sleep
+                        <button
+                          onClick={() => setShowSleepMenu((p) => !p)}
+                          className="micro-interact flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-neutral-400 hover:bg-white/[0.08] hover:text-white"
+                        >
+                          <Timer className="h-3.5 w-3.5" />
+                          Sleep
                         </button>
                       )}
                       {showSleepMenu && (
@@ -607,13 +853,19 @@ const Player = () => {
                             backdropFilter: "blur(32px) saturate(180%)",
                             WebkitBackdropFilter: "blur(32px) saturate(180%)",
                             border: "1px solid rgba(255,255,255,0.1)",
-                            boxShadow: "0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)",
+                            boxShadow:
+                              "0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)",
                           }}
                         >
-                          <p className="px-4 pb-1.5 pt-3 text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500">Sleep after</p>
+                          <p className="px-4 pb-1.5 pt-3 text-[10px] font-black uppercase tracking-[0.2em] text-neutral-500">
+                            Sleep after
+                          </p>
                           {SLEEP_OPTIONS.map((opt) => (
-                            <button key={opt.label} onClick={() => handleSleepSelect(opt)}
-                              className="w-full px-4 py-2.5 text-left text-sm font-medium text-neutral-300 transition-colors hover:bg-white/5 hover:text-white">
+                            <button
+                              key={opt.label}
+                              onClick={() => handleSleepSelect(opt)}
+                              className="w-full px-4 py-2.5 text-left text-sm font-medium text-neutral-300 transition-colors hover:bg-white/5 hover:text-white"
+                            >
                               {opt.label}
                             </button>
                           ))}
@@ -624,29 +876,49 @@ const Player = () => {
 
                   {/* Volume */}
                   <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                    <button onClick={() => setVolume(volume === 0 ? 0.7 : 0)} className="micro-interact text-neutral-500 hover:text-white">
+                    <button
+                      onClick={() => setVolume(volume === 0 ? 0.7 : 0)}
+                      className="micro-interact text-neutral-500 hover:text-white"
+                    >
                       <VolumeIcon className="h-4 w-4" />
                     </button>
                     <div className="relative flex-1 group/vol">
-                      <input type="range" min="0" max="1" step="0.01" value={volume}
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.01"
+                        value={volume}
                         onChange={(e) => setVolume(parseFloat(e.target.value))}
-                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+                        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                      />
                       <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10 transition-all duration-200 group-hover/vol:h-2.5">
-                        <div className="h-full rounded-full bg-white/80 transition-[width] duration-150" style={{ width: `${volume * 100}%` }} />
+                        <div
+                          className="h-full rounded-full bg-white/80 transition-[width] duration-150"
+                          style={{ width: `${volume * 100}%` }}
+                        />
                       </div>
                     </div>
-                    <span className="w-10 text-right text-xs font-semibold tabular-nums text-neutral-500">{Math.round(volume * 100)}%</span>
+                    <span className="w-10 text-right text-xs font-semibold tabular-nums text-neutral-500">
+                      {Math.round(volume * 100)}%
+                    </span>
                   </div>
 
                   {/* Tabs */}
                   <div className="flex gap-1 rounded-2xl border border-white/5 bg-white/[0.03] p-1">
-                    <button onClick={() => setShowLyricsTab(false)}
-                      className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2 text-xs font-semibold transition-all ${!showLyricsTab ? "bg-white/10 text-white" : "text-neutral-500 hover:text-neutral-300"}`}>
-                      <ListMusic className="h-3.5 w-3.5" />Queue ({playlist.length})
+                    <button
+                      onClick={() => setShowLyricsTab(false)}
+                      className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2 text-xs font-semibold transition-all ${!showLyricsTab ? "bg-white/10 text-white" : "text-neutral-500 hover:text-neutral-300"}`}
+                    >
+                      <ListMusic className="h-3.5 w-3.5" />
+                      Queue ({playlist.length})
                     </button>
-                    <button onClick={() => setShowLyricsTab(true)}
-                      className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2 text-xs font-semibold transition-all ${showLyricsTab ? "bg-white/10 text-white" : "text-neutral-500 hover:text-neutral-300"}`}>
-                      <Mic2 className="h-3.5 w-3.5" />Lyrics
+                    <button
+                      onClick={() => setShowLyricsTab(true)}
+                      className={`flex flex-1 items-center justify-center gap-2 rounded-xl py-2 text-xs font-semibold transition-all ${showLyricsTab ? "bg-white/10 text-white" : "text-neutral-500 hover:text-neutral-300"}`}
+                    >
+                      <Mic2 className="h-3.5 w-3.5" />
+                      Lyrics
                     </button>
                   </div>
 
@@ -654,10 +926,17 @@ const Player = () => {
                     {showLyricsTab ? (
                       <div className="flex h-36 flex-col items-center justify-center gap-2">
                         <Mic2 className="h-7 w-7 text-neutral-700" />
-                        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-600">Lyrics coming soon</p>
+                        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-600">
+                          Lyrics coming soon
+                        </p>
                       </div>
                     ) : (
-                      <div className="max-h-44 overflow-y-auto"><QueueList playlist={playlist} currentTrack={currentTrack} /></div>
+                      <div className="max-h-44 overflow-y-auto">
+                        <QueueList
+                          playlist={playlist}
+                          currentTrack={currentTrack}
+                        />
+                      </div>
                     )}
                   </div>
                 </div>
@@ -671,7 +950,10 @@ const Player = () => {
             style={{
               background: "var(--color-bg)",
               transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
-              transition: dragY > 0 ? "none" : "transform 0.35s cubic-bezier(0.22,1,0.36,1)",
+              transition:
+                dragY > 0
+                  ? "none"
+                  : "transform 0.35s cubic-bezier(0.22,1,0.36,1)",
               willChange: "transform",
             }}
             onTouchStart={onExpandedTouchStart}
@@ -680,22 +962,30 @@ const Player = () => {
           >
             {/* Ambient blurred background art */}
             {coverArt && (
-              <img src={coverArt} alt="" aria-hidden
-                className="pointer-events-none absolute inset-0 h-full w-full scale-110 object-cover opacity-20 blur-3xl saturate-150" />
+              <img
+                src={coverArt}
+                alt=""
+                aria-hidden
+                className="pointer-events-none absolute inset-0 h-full w-full scale-110 object-cover opacity-20 blur-3xl saturate-150"
+              />
             )}
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/60 via-neutral-950/80 to-neutral-950" />
 
             {/* Safe-area top + drag handle */}
-            <div className="relative z-10 flex flex-shrink-0 flex-col items-center"
-              style={{ paddingTop: "env(safe-area-inset-top, 8px)" }}>
+            <div
+              className="relative z-10 flex flex-shrink-0 flex-col items-center"
+              style={{ paddingTop: "env(safe-area-inset-top, 8px)" }}
+            >
               <div className="mt-3 h-1 w-10 rounded-full bg-white/25" />
             </div>
 
             {/* Top bar */}
             <div className="relative z-10 flex flex-shrink-0 items-center justify-between px-5 py-2">
-              <button onClick={() => setIsExpanded(false)}
+              <button
+                onClick={minimizePlayer}
                 className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.08] text-neutral-400 active:bg-white/15"
-                aria-label="Minimize">
+                aria-label="Minimize"
+              >
                 <ChevronDown className="h-5 w-5" />
               </button>
               <p className="text-[10px] font-black uppercase tracking-[0.22em] text-neutral-400">
@@ -710,10 +1000,16 @@ const Player = () => {
             <div className="relative z-10 flex flex-1 flex-col overflow-y-auto">
               {/* Album art — 60vw, centered, capped at 320px */}
               <div className="flex flex-shrink-0 justify-center px-6 pb-6 pt-4">
-                <div className="overflow-hidden rounded-[22px] border border-white/10 bg-neutral-900 shadow-[0_24px_72px_rgba(0,0,0,0.55)]"
-                  style={{ width: "min(60vw, 320px)", aspectRatio: "1" }}>
+                <div
+                  className="overflow-hidden rounded-[22px] border border-white/10 bg-neutral-900 shadow-[0_24px_72px_rgba(0,0,0,0.55)]"
+                  style={{ width: "min(60vw, 320px)", aspectRatio: "1" }}
+                >
                   {coverArt ? (
-                    <img src={coverArt} alt={trackTitle} className="h-full w-full object-cover" />
+                    <img
+                      src={coverArt}
+                      alt={trackTitle}
+                      className="h-full w-full object-cover"
+                    />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center">
                       <MusicIcon className="h-16 w-16 text-neutral-700" />
@@ -728,94 +1024,153 @@ const Player = () => {
                   <h3 className="line-clamp-2 text-xl font-black leading-tight tracking-tight text-white sm:text-2xl">
                     {trackTitle}
                   </h3>
-                  <p className="mt-1 truncate text-sm text-neutral-400">{trackArtist}</p>
+                  <p className="mt-1 truncate text-sm text-neutral-400">
+                    {trackArtist}
+                  </p>
                 </div>
                 <button
                   onClick={() => currentTrack && toggleFavorite(currentTrack)}
                   disabled={savingFavoriteId === currentTrack?._id}
                   className={`mt-1 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full border transition-all ${isFavorited ? "border-pink-500/50 bg-pink-500/15 text-pink-300" : "border-white/15 bg-white/5 text-neutral-500 active:bg-white/10"}`}
-                  aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
+                  aria-label={
+                    isFavorited ? "Remove from favorites" : "Add to favorites"
+                  }
                 >
-                  {savingFavoriteId === currentTrack?._id
-                    ? <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                    : <Heart className={`h-5 w-5 ${isFavorited ? "fill-current" : ""}`} />}
+                  {savingFavoriteId === currentTrack?._id ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  ) : (
+                    <Heart
+                      className={`h-5 w-5 ${isFavorited ? "fill-current" : ""}`}
+                    />
+                  )}
                 </button>
               </div>
 
               {/* Seek bar */}
               <div className="mt-6 flex-shrink-0 px-6">
-                <SeekBar progress={progressValue} onSeek={seek} elapsed={elapsedTime} total={totalDuration} />
+                <SeekBar
+                  progress={progressValue}
+                  onSeek={seek}
+                  elapsed={elapsedTime}
+                  total={totalDuration}
+                />
               </div>
 
               {/* Main controls */}
               <div className="mt-5 flex flex-shrink-0 items-center justify-between px-5">
                 {/* Shuffle */}
-                <button onClick={() => setShuffleEnabled((p) => !p)}
-                  className={`flex h-12 w-12 items-center justify-center rounded-full border transition-all active:scale-95 ${shuffleEnabled ? "border-indigo-500/40 bg-indigo-500/15 text-indigo-400" : "border-white/10 bg-white/[0.06] text-neutral-500"}`}>
+                <button
+                  onClick={() => setShuffleEnabled((p) => !p)}
+                  className={`flex h-12 w-12 items-center justify-center rounded-full border transition-all active:scale-95 ${shuffleEnabled ? "border-indigo-500/40 bg-indigo-500/15 text-indigo-400" : "border-white/10 bg-white/[0.06] text-neutral-500"}`}
+                >
                   <Shuffle className="h-5 w-5" />
                 </button>
                 {/* Previous */}
-                <button onClick={playPrevious} disabled={playlist.length <= 1}
-                  className="flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-neutral-300 active:scale-95 disabled:opacity-30">
+                <button
+                  onClick={playPrevious}
+                  disabled={playlist.length <= 1}
+                  className="flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-neutral-300 active:scale-95 disabled:opacity-30"
+                >
                   <SkipBack className="h-6 w-6 fill-current" />
                 </button>
                 {/* Play/Pause */}
-                <button onClick={togglePlay}
-                  className="flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full bg-white text-black shadow-[0_0_50px_rgba(255,255,255,0.22)] active:scale-95">
-                  {isPlaying
-                    ? <Pause className="h-8 w-8 fill-current" />
-                    : <Play className="ml-1 h-8 w-8 fill-current" />}
+                <button
+                  onClick={togglePlay}
+                  className="flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-full bg-white text-black shadow-[0_0_50px_rgba(255,255,255,0.22)] active:scale-95"
+                >
+                  {isPlaying ? (
+                    <Pause className="h-8 w-8 fill-current" />
+                  ) : (
+                    <Play className="ml-1 h-8 w-8 fill-current" />
+                  )}
                 </button>
                 {/* Next */}
-                <button onClick={() => playNext(true)} disabled={playlist.length <= 1}
-                  className="flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-neutral-300 active:scale-95 disabled:opacity-30">
+                <button
+                  onClick={() => playNext(true)}
+                  disabled={playlist.length <= 1}
+                  className="flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-neutral-300 active:scale-95 disabled:opacity-30"
+                >
                   <SkipForward className="h-6 w-6 fill-current" />
                 </button>
                 {/* Repeat */}
-                <button onClick={() => setRepeatMode((m) => m === "off" ? "all" : m === "all" ? "one" : "off")}
-                  className={`flex h-12 w-12 items-center justify-center rounded-full border transition-all active:scale-95 ${repeatMode !== "off" ? "border-indigo-500/40 bg-indigo-500/15 text-indigo-400" : "border-white/10 bg-white/[0.06] text-neutral-500"}`}>
+                <button
+                  onClick={() =>
+                    setRepeatMode((m) =>
+                      m === "off" ? "all" : m === "all" ? "one" : "off",
+                    )
+                  }
+                  className={`flex h-12 w-12 items-center justify-center rounded-full border transition-all active:scale-95 ${repeatMode !== "off" ? "border-indigo-500/40 bg-indigo-500/15 text-indigo-400" : "border-white/10 bg-white/[0.06] text-neutral-500"}`}
+                >
                   <RepeatIcon className="h-5 w-5" />
                 </button>
               </div>
 
               {/* Action row: Queue + Sleep */}
               <div className="mt-5 flex flex-shrink-0 gap-3 px-5">
-                <button onClick={() => setShowQueueSheet(true)}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] py-3.5 text-sm font-semibold text-neutral-400 active:bg-white/10">
+                <button
+                  onClick={() => setShowQueueSheet(true)}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] py-3.5 text-sm font-semibold text-neutral-400 active:bg-white/10"
+                >
                   <ListMusic className="h-4 w-4" />
                   Queue ({playlist.length})
                 </button>
                 {sleepActive ? (
-                  <button onClick={cancelSleep}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/15 py-3.5 text-sm font-semibold text-amber-300 active:bg-amber-500/25">
-                    <Timer className="h-4 w-4" />{sleepLabel}<X className="h-3.5 w-3.5" />
+                  <button
+                    onClick={cancelSleep}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/15 py-3.5 text-sm font-semibold text-amber-300 active:bg-amber-500/25"
+                  >
+                    <Timer className="h-4 w-4" />
+                    {sleepLabel}
+                    <X className="h-3.5 w-3.5" />
                   </button>
                 ) : (
-                  <button onClick={() => setShowSleepSheet(true)}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] py-3.5 text-sm font-semibold text-neutral-400 active:bg-white/10">
-                    <Timer className="h-4 w-4" />Sleep
+                  <button
+                    onClick={() => setShowSleepSheet(true)}
+                    className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.06] py-3.5 text-sm font-semibold text-neutral-400 active:bg-white/10"
+                  >
+                    <Timer className="h-4 w-4" />
+                    Sleep
                   </button>
                 )}
               </div>
 
               {/* Volume */}
               <div className="mx-5 mt-4 flex flex-shrink-0 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3.5">
-                <button onClick={() => setVolume(volume === 0 ? 0.7 : 0)} className="text-neutral-500 active:text-white">
+                <button
+                  onClick={() => setVolume(volume === 0 ? 0.7 : 0)}
+                  className="text-neutral-500 active:text-white"
+                >
                   <VolumeIcon className="h-4 w-4" />
                 </button>
                 <div className="relative flex-1">
-                  <input type="range" min="0" max="1" step="0.01" value={volume}
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={volume}
                     onChange={(e) => setVolume(parseFloat(e.target.value))}
-                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                  />
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-                    <div className="h-full rounded-full bg-white/80 transition-[width] duration-150" style={{ width: `${volume * 100}%` }} />
+                    <div
+                      className="h-full rounded-full bg-white/80 transition-[width] duration-150"
+                      style={{ width: `${volume * 100}%` }}
+                    />
                   </div>
                 </div>
-                <span className="w-10 text-right text-xs font-semibold tabular-nums text-neutral-500">{Math.round(volume * 100)}%</span>
+                <span className="w-10 text-right text-xs font-semibold tabular-nums text-neutral-500">
+                  {Math.round(volume * 100)}%
+                </span>
               </div>
 
               {/* Safe-area spacer */}
-              <div className="flex-shrink-0" style={{ height: "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)" }} />
+              <div
+                className="flex-shrink-0"
+                style={{
+                  height: "calc(env(safe-area-inset-bottom, 0px) + 1.5rem)",
+                }}
+              />
             </div>
           </div>
         </div>
@@ -836,11 +1191,13 @@ const Player = () => {
       <div
         className="overflow-hidden rounded-[22px]"
         style={{
-          background: "linear-gradient(160deg, rgba(12,12,20,0.88), rgba(5,5,10,0.94))",
+          background:
+            "linear-gradient(160deg, rgba(12,12,20,0.88), rgba(5,5,10,0.94))",
           backdropFilter: "blur(40px) saturate(180%)",
           WebkitBackdropFilter: "blur(40px) saturate(180%)",
           border: "1px solid rgba(255,255,255,0.1)",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.5), 0 24px 80px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)",
+          boxShadow:
+            "0 8px 32px rgba(0,0,0,0.5), 0 24px 80px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)",
         }}
       >
         {/* Clickable progress bar */}
@@ -867,18 +1224,33 @@ const Player = () => {
             className="micro-interact h-14 w-14 flex-shrink-0 overflow-hidden rounded-xl border border-white/10 bg-neutral-900 shadow-[0_8px_24px_rgba(0,0,0,0.3)]"
             aria-label="Open player"
           >
-            {coverArt
-              ? <img src={coverArt} alt={trackTitle} className="h-full w-full object-cover" />
-              : <div className="flex h-full w-full items-center justify-center"><MusicIcon className="h-6 w-6 text-neutral-600" /></div>}
+            {coverArt ? (
+              <img
+                src={coverArt}
+                alt={trackTitle}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center">
+                <MusicIcon className="h-6 w-6 text-neutral-600" />
+              </div>
+            )}
           </button>
 
           {/* Track info — tap to expand */}
-          <button onClick={() => setIsExpanded(true)} className="relative min-w-0 flex-1 text-left">
-            <p className="truncate text-sm font-semibold text-white">{trackTitle}</p>
+          <button
+            onClick={() => setIsExpanded(true)}
+            className="relative min-w-0 flex-1 text-left"
+          >
+            <p className="truncate text-sm font-semibold text-white">
+              {trackTitle}
+            </p>
             <p className="mt-0.5 truncate text-xs text-neutral-500">
               {trackArtist}
               {sleepActive && (
-                <span className="ml-2 font-semibold text-amber-400">· {sleepLabel}</span>
+                <span className="ml-2 font-semibold text-amber-400">
+                  · {sleepLabel}
+                </span>
               )}
             </p>
           </button>
@@ -892,45 +1264,67 @@ const Player = () => {
               className={`micro-interact hidden h-10 w-10 items-center justify-center rounded-full border sm:flex disabled:opacity-50 ${isFavorited ? "border-pink-500/40 bg-pink-500/15 text-pink-300" : "border-white/10 bg-white/5 text-neutral-500 hover:text-white"}`}
               aria-label={isFavorited ? "Remove from favorites" : "Save"}
             >
-              {savingFavoriteId === currentTrack?._id
-                ? <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                : <Heart className={`h-4 w-4 ${isFavorited ? "fill-current" : ""}`} />}
+              {savingFavoriteId === currentTrack?._id ? (
+                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              ) : (
+                <Heart
+                  className={`h-4 w-4 ${isFavorited ? "fill-current" : ""}`}
+                />
+              )}
             </button>
 
             {/* Shuffle — md+ */}
-            <button onClick={() => setShuffleEnabled((p) => !p)}
+            <button
+              onClick={() => setShuffleEnabled((p) => !p)}
               className={`micro-interact hidden h-9 w-9 items-center justify-center rounded-full border md:flex ${shuffleEnabled ? "border-indigo-500/40 bg-indigo-500/15 text-indigo-400" : "border-white/10 bg-white/5 text-neutral-500 hover:text-white"}`}
-              aria-label="Shuffle">
+              aria-label="Shuffle"
+            >
               <Shuffle className="h-3.5 w-3.5" />
             </button>
 
             {/* Previous */}
-            <button onClick={playPrevious} disabled={playlist.length <= 1}
+            <button
+              onClick={playPrevious}
+              disabled={playlist.length <= 1}
               className="micro-interact flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-neutral-500 hover:text-white disabled:opacity-25 active:scale-95"
-              aria-label="Previous">
+              aria-label="Previous"
+            >
               <SkipBack className="h-4 w-4 fill-current" />
             </button>
 
             {/* Play/Pause — largest touch target */}
-            <button onClick={togglePlay}
+            <button
+              onClick={togglePlay}
               className="micro-interact flex h-12 w-12 items-center justify-center rounded-full bg-white text-black shadow-[0_0_28px_rgba(255,255,255,0.2)] hover:shadow-[0_0_40px_rgba(255,255,255,0.28)] active:scale-95"
-              aria-label={isPlaying ? "Pause" : "Play"}>
-              {isPlaying
-                ? <Pause className="h-5 w-5 fill-current" />
-                : <Play className="ml-0.5 h-5 w-5 fill-current" />}
+              aria-label={isPlaying ? "Pause" : "Play"}
+            >
+              {isPlaying ? (
+                <Pause className="h-5 w-5 fill-current" />
+              ) : (
+                <Play className="ml-0.5 h-5 w-5 fill-current" />
+              )}
             </button>
 
             {/* Next */}
-            <button onClick={() => playNext(true)} disabled={playlist.length <= 1}
+            <button
+              onClick={() => playNext(true)}
+              disabled={playlist.length <= 1}
               className="micro-interact flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-neutral-500 hover:text-white disabled:opacity-25 active:scale-95"
-              aria-label="Next">
+              aria-label="Next"
+            >
               <SkipForward className="h-4 w-4 fill-current" />
             </button>
 
             {/* Repeat — md+ */}
-            <button onClick={() => setRepeatMode((m) => m === "off" ? "all" : m === "all" ? "one" : "off")}
+            <button
+              onClick={() =>
+                setRepeatMode((m) =>
+                  m === "off" ? "all" : m === "all" ? "one" : "off",
+                )
+              }
               className={`micro-interact hidden h-9 w-9 items-center justify-center rounded-full border md:flex ${repeatMode !== "off" ? "border-indigo-500/40 bg-indigo-500/15 text-indigo-400" : "border-white/10 bg-white/5 text-neutral-500 hover:text-white"}`}
-              aria-label={`Repeat: ${repeatMode}`}>
+              aria-label={`Repeat: ${repeatMode}`}
+            >
               <RepeatIcon className="h-3.5 w-3.5" />
             </button>
 
@@ -938,19 +1332,30 @@ const Player = () => {
             <div className="ml-1 hidden w-32 items-center gap-2 lg:flex">
               <VolumeIcon className="h-4 w-4 flex-shrink-0 text-neutral-500" />
               <div className="relative flex-1 group/vol">
-                <input type="range" min="0" max="1" step="0.01" value={volume}
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={volume}
                   onChange={(e) => setVolume(parseFloat(e.target.value))}
-                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                />
                 <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10 transition-all duration-200 group-hover/vol:h-2.5">
-                  <div className="h-full rounded-full bg-white/70 transition-[width] duration-150" style={{ width: `${volume * 100}%` }} />
+                  <div
+                    className="h-full rounded-full bg-white/70 transition-[width] duration-150"
+                    style={{ width: `${volume * 100}%` }}
+                  />
                 </div>
               </div>
             </div>
 
             {/* Expand */}
-            <button onClick={() => setIsExpanded(true)}
+            <button
+              onClick={() => setIsExpanded(true)}
               className="micro-interact flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-neutral-500 hover:text-white"
-              aria-label="Open expanded player">
+              aria-label="Open expanded player"
+            >
               <Expand className="h-4 w-4" />
             </button>
           </div>

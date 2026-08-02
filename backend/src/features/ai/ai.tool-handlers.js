@@ -1,6 +1,9 @@
 "use strict";
 
+const { z } = require("zod");
 const youtubeService = require("../../services/youtube.service");
+const webSearchService = require("../../services/web-search.service");
+const embeddingService = require("../../services/embedding.service");
 const Music = require("../music/music.model");
 const Playlist = require("../playlists/playlists.model");
 const { ensureLikedSongsPlaylist } = require("../music/music.controller");
@@ -245,45 +248,138 @@ const handlers = {
       "Playlist import initiated — confirm to start the batch import.",
     );
   },
+
+  semantic_search_music: async (args) => {
+    const query = trim(args?.query);
+    if (!query) return fail("semantic_search_music", "Describe the vibe or feeling you're after.");
+
+    const results = await embeddingService.searchMusicByMeaning(query, { limit: 10 });
+
+    // Embeddings unavailable (model offline) — degrade to keyword search
+    if (results === null) return handlers.search_music({ query });
+
+    const musics = results.map(m => ({
+      ...m,
+      songId: String(m._id),
+      source: "library",
+    }));
+
+    return ok(
+      "semantic_search_music",
+      { query, musics },
+      musics.length
+        ? `Found ${musics.length} tracks matching that vibe.`
+        : `Nothing in the library matches "${query}" yet — try a regular search to pull from YouTube.`,
+    );
+  },
+
+  web_search: async (args) => {
+    const query = trim(args?.query);
+    if (!query) return fail("web_search", "What should I look up?");
+
+    const results = await webSearchService.search(query, { maxResults: 5 });
+    return ok(
+      "web_search",
+      { query, results },
+      results.length ? `Found ${results.length} results for "${query}".` : `No web results for "${query}".`,
+    );
+  },
 };
 
 // ─── Tool registry ─────────────────────────────────────────────────────────────
+// `parameters` are zod schemas — converted to JSON Schema for the LLM's native
+// tool-calling API and used to validate/coerce planner-produced args.
 const TOOLS = {
   search_music: {
     description: "Search music by title or artist (local library + YouTube)",
     requiresAuth: false,
+    parameters: z.object({
+      query: z.string().describe("Song title, artist name, or keywords"),
+    }),
     handler: handlers.search_music,
+  },
+  semantic_search_music: {
+    description: "Find library songs by mood, vibe, or meaning rather than exact keywords (e.g. 'songs for a rainy night')",
+    requiresAuth: false,
+    parameters: z.object({
+      query: z.string().describe("Mood, feeling, or vibe description"),
+    }),
+    handler: handlers.semantic_search_music,
   },
   play_song: {
     description: "Find and stream a song by title or YouTube URL",
     requiresAuth: false,
+    parameters: z.object({
+      query: z.string().optional().describe("Song title or artist to play"),
+      youtubeUrl: z.string().optional().describe("Direct YouTube URL"),
+    }),
     handler: handlers.play_song,
   },
   fetch_favorites: {
     description: "Retrieve the current user's saved songs",
     requiresAuth: true,
+    parameters: z.object({}),
     handler: handlers.fetch_favorites,
   },
   like_song: {
     description: "Save a single song to the user's library",
     requiresAuth: true,
+    parameters: z.object({
+      query: z.string().optional().describe("Song title to find and save"),
+      youtubeUrl: z.string().optional().describe("Direct YouTube URL"),
+      songId: z.string().optional().describe("ID of a song from recent search results"),
+    }),
     handler: handlers.like_song,
   },
   delete_song: {
     description: "Remove a song from the user's library",
     requiresAuth: true,
+    parameters: z.object({
+      title: z.string().optional().describe("Song title to remove"),
+      youtubeUrl: z.string().optional().describe("YouTube URL of the song"),
+      songId: z.string().optional().describe("ID of a song from recent search results"),
+    }),
     handler: handlers.delete_song,
   },
   batch_like: {
     description: "Save multiple songs in one batch operation",
     requiresAuth: true,
+    parameters: z.object({
+      tracks: z.array(z.object({
+        title: z.string(),
+        artist: z.string().optional(),
+      })).describe("List of songs to save"),
+    }),
     handler: handlers.batch_like,
   },
   import_playlist: {
     description: "Import a Spotify or YouTube playlist",
     requiresAuth: true,
+    parameters: z.object({
+      url: z.string().describe("Playlist URL"),
+      source: z.enum(["spotify", "youtube"]).default("spotify"),
+    }),
     handler: handlers.import_playlist,
+  },
+  web_search: {
+    description: "Search the web for music facts, artist news, release dates, or anything not in the music library",
+    requiresAuth: false,
+    parameters: z.object({
+      query: z.string().describe("Web search query"),
+    }),
+    handler: handlers.web_search,
   },
 };
 
-module.exports = { TOOLS, searchLocal, extractYouTubeUrl, extractSpotifyUrl };
+// OpenAI-style function specs for the LLM `tools` parameter (Groq + Gemini compatible)
+const toLLMSpec = () =>
+  Object.entries(TOOLS).map(([name, def]) => ({
+    type: "function",
+    function: {
+      name,
+      description: def.description,
+      parameters: z.toJSONSchema(def.parameters),
+    },
+  }));
+
+module.exports = { TOOLS, toLLMSpec, searchLocal, extractYouTubeUrl, extractSpotifyUrl };

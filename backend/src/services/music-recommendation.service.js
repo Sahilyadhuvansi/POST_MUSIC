@@ -2,6 +2,7 @@
 
 const Music = require("../features/music/music.model");
 const aiService = require("./ai.service");
+const embeddingService = require("./embedding.service");
 const config = require("../config/ai.config");
 
 class MusicRecommendationService {
@@ -90,14 +91,33 @@ Example: ["Great energy match", "Similar vibe to favorites"]`,
   }
 
   async findSimilar(musicId, limit = 5) {
-    const target = await Music.findById(musicId).lean();
+    const target = await Music.findById(musicId).select("+embedding").lean();
     if (!target) throw new Error("Music not found");
 
-    const all = await Music.find({ _id: { $ne: musicId } }).limit(50).lean();
+    const all = await Music.find({ _id: { $ne: musicId } })
+      .select("+embedding")
+      .limit(50)
+      .lean();
+
+    // Prefer embedding cosine similarity; fall back to title word-overlap
+    // for docs without vectors (or when the embedding model is offline).
+    let targetVec = target.embedding?.length ? target.embedding : null;
+    if (!targetVec) {
+      targetVec = await embeddingService.embed(target.title).catch(() => null);
+    }
+
     const targetWords = new Set(target.title.toLowerCase().split(/\s+/));
 
     return all
-      .map(m => {
+      .map(({ embedding, ...m }) => {
+        if (targetVec && embedding?.length) {
+          const sim = embeddingService.cosine(targetVec, embedding);
+          return {
+            ...m,
+            similarityScore: Math.round(sim * 100),
+            reason: sim > 0.5 ? "Similar vibe" : "New discovery",
+          };
+        }
         const words = m.title.toLowerCase().split(/\s+/);
         const overlap = words.filter(w => targetWords.has(w)).length;
         return { ...m, similarityScore: overlap * 10, reason: overlap > 0 ? "Shared sound" : "New discovery" };

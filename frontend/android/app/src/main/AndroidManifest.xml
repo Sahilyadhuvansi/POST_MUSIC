@@ -38,4 +38,6 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Keep CPU awake for background music playback (used by WebView media) -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 </manifest>

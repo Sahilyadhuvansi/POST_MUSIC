@@ -27,7 +27,12 @@ class Analytics {
 
   getComprehensiveReport() {
     const total = this._times.length;
-    const totalCost = this._costs.reduce((sum, c) => sum + c.cost, 0);
+    // "Daily" budget window — only count costs from the last 24h
+    const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    const totalCost = this._costs.reduce(
+      (sum, c) => (c.at >= dayAgo ? sum + c.cost : sum),
+      0,
+    );
     return {
       summary: {
         totalRequests: total,

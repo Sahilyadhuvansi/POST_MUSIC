@@ -1,56 +1,92 @@
 "use strict";
 
 const config = require("../../config/ai.config");
+const redisCache = require("../../utils/redis-cache");
 
-// In-process session store keyed by user-id or IP
+// In-process session store — fallback when Redis is unavailable, and a
+// hot read-through cache in front of it when it is.
 const SESSIONS = new Map();
 
 const _key = (req) => (req.user?.id ? `u:${req.user.id}` : `ip:${req.ip ?? "anon"}`);
+const _redisKey = (key) => `ai:sess:${key}`;
 
-const getSession = (req) => {
-  const entry = SESSIONS.get(_key(req));
-  if (!entry || Date.now() - entry.at > config.agent.sessionTTL) {
-    return { lastResults: [], lastResolvedIndex: 0 };
-  }
-  return entry.data;
-};
+const EMPTY = () => ({ lastResults: [], lastResolvedIndex: 0 });
 
-const setSession = (req, patch) => {
+const getSession = async (req) => {
   const key = _key(req);
-  const current = getSession(req);
-  SESSIONS.set(key, { data: { ...current, ...patch }, at: Date.now() });
+
+  const local = SESSIONS.get(key);
+  if (local && Date.now() - local.at <= config.agent.sessionTTL) {
+    return local.data;
+  }
+
+  // Survives restarts / shared across instances
+  const remote = await redisCache.getJSON(_redisKey(key));
+  if (remote) {
+    SESSIONS.set(key, { data: remote, at: Date.now() });
+    return remote;
+  }
+
+  return EMPTY();
 };
 
-const saveSearchResults = (req, musics = []) => {
+const setSession = async (req, patch) => {
+  const key = _key(req);
+  const current = await getSession(req);
+  const data = { ...current, ...patch };
+
+  SESSIONS.set(key, { data, at: Date.now() });
+  await redisCache.setJSON(_redisKey(key), data, config.agent.sessionTTL);
+};
+
+const saveSearchResults = async (req, musics = []) => {
   const compact = musics.slice(0, 30).map(m => ({
     songId: String(m._id || m.songId || ""),
     title: m.title || "Untitled",
     youtubeUrl: m.youtubeUrl || "",
   }));
-  setSession(req, { lastResults: compact, lastResolvedIndex: 0 });
+  await setSession(req, { lastResults: compact, lastResolvedIndex: 0 });
 };
 
 const ORDINALS = { first: 0, second: 1, third: 2, fourth: 3, fifth: 4 };
 
+// Words that can surround a numeric selection without changing its meaning
+const FILLER_RE =
+  /\b(play|listen|to|save|like|favorite|add|delete|remove|unlike|discard|unfavorite|the|song|track|one|number|no|please)\b/g;
+
 const resolveOrdinal = (message, session) => {
   const lower = message.toLowerCase();
-  const m = lower.match(/\b(first|second|third|fourth|fifth|last|\d+)\b/);
-  if (!m) return null;
 
-  const token = m[1];
-  if (ORDINALS[token] !== undefined) return ORDINALS[token];
-  if (token === "last") return Math.max(0, (session.lastResults?.length ?? 1) - 1);
+  const word = lower.match(/\b(first|second|third|fourth|fifth|last)\b/);
+  if (word) {
+    return word[1] === "last"
+      ? Math.max(0, (session.lastResults?.length ?? 1) - 1)
+      : ORDINALS[word[1]];
+  }
 
+  // Bare numbers are only selections when clearly referential — "3rd",
+  // "number 3", "#3", or verb+number alone ("save 3"). Titles containing
+  // numbers ("play 7 rings", "blink 182") must NOT resolve.
+  const explicit =
+    lower.match(/\b(\d+)(?:st|nd|rd|th)\b/) || lower.match(/(?:\bnumber\s+|#)(\d+)\b/);
+  let token = explicit?.[1];
+
+  if (!token) {
+    const stripped = lower.replace(FILLER_RE, " ").replace(/[.!?,]/g, " ").trim();
+    if (/^\d+$/.test(stripped)) token = stripped;
+  }
+
+  if (!token) return null;
   const n = parseInt(token, 10);
   return Number.isFinite(n) && n >= 1 ? n - 1 : null;
 };
 
-// Evict stale sessions every 30 minutes
+// Evict stale local entries every 30 minutes (Redis keys expire on their own)
 setInterval(() => {
   const cutoff = Date.now() - config.agent.sessionTTL;
   for (const [k, v] of SESSIONS) {
     if (v.at < cutoff) SESSIONS.delete(k);
   }
-}, config.agent.sessionTTL);
+}, config.agent.sessionTTL).unref();
 
 module.exports = { getSession, setSession, saveSearchResults, resolveOrdinal };

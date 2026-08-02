@@ -22,6 +22,7 @@ const optionalAuth = (req, _res, next) => {
 };
 
 // ─── Music AI endpoints ────────────────────────────────────────────────────────
+router.get("/health", (_req, res) => res.status(200).json(require("./ai.health").getQuickStatus()));
 router.get("/recommendations", ...privateAI, controller.getRecommendations);
 router.get("/similar/:musicId", ...publicAI, controller.findSimilar);
 router.post("/mood-playlist", ...publicAI, controller.moodPlaylist);
