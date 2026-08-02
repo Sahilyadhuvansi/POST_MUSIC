@@ -9,7 +9,16 @@ class Analytics {
   }
 
   recordCost(endpoint, cost, tokensUsed) {
-    this._push(this._costs, { at: Date.now(), endpoint, cost: cost || 0, tokensUsed: tokensUsed || 0 });
+    const now = Date.now();
+    this._costs.push({ at: now, endpoint, cost: cost || 0, tokensUsed: tokensUsed || 0 });
+    this._pruneOldCosts(now);
+  }
+
+  _pruneOldCosts(now = Date.now()) {
+    const dayAgo = now - 24 * 60 * 60 * 1000;
+    while (this._costs.length > 0 && this._costs[0].at < dayAgo) {
+      this._costs.shift();
+    }
   }
 
   recordResponseTime(endpoint, ms, success) {
@@ -26,13 +35,9 @@ class Analytics {
   }
 
   getComprehensiveReport() {
+    this._pruneOldCosts();
     const total = this._times.length;
-    // "Daily" budget window — only count costs from the last 24h
-    const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
-    const totalCost = this._costs.reduce(
-      (sum, c) => (c.at >= dayAgo ? sum + c.cost : sum),
-      0,
-    );
+    const totalCost = this._costs.reduce((sum, c) => sum + c.cost, 0);
     return {
       summary: {
         totalRequests: total,

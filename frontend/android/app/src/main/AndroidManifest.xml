@@ -24,6 +24,27 @@
 
         </activity>
 
+        <!-- Music playback foreground service -->
+        <service
+            android:name=".MusicPlaybackService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <!-- Receiver for notification playback controls -->
+        <receiver
+            android:name=".MusicNotificationReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.musicdiscover.app.ACTION_PLAY" />
+                <action android:name="com.musicdiscover.app.ACTION_PAUSE" />
+                <action android:name="com.musicdiscover.app.ACTION_NEXT" />
+                <action android:name="com.musicdiscover.app.ACTION_PREV" />
+                <action android:name="com.musicdiscover.app.ACTION_STOP" />
+            </intent-filter>
+        </receiver>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -40,4 +61,10 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Keep CPU awake for background music playback (used by WebView media) -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Required for the foreground service -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Required for foreground service type mediaPlayback on Android 14+ -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Required on Android 13+ to show notifications -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

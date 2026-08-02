@@ -13,6 +13,13 @@ import { normalizeYoutubeUrl } from "../../utils/youtube";
 import api from "../../services/api";
 import { useAuth } from "../auth/AuthContext";
 import { useToast } from "../../components/ui/Toast";
+import {
+  startMusicService,
+  updateMusicMetadata,
+  updatePlaybackState,
+  stopMusicService,
+  onMusicServiceAction,
+} from "../../services/capacitor-music-service";
 
 const MusicContext = createContext(null);
 
@@ -438,6 +445,7 @@ export const MusicProvider = ({ children }) => {
     setIsPlaying(false);
     setProgress(0);
     setDuration(0);
+    stopMusicService();
   }, []);
 
   const addToQueue = useCallback(
@@ -606,6 +614,69 @@ export const MusicProvider = ({ children }) => {
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
   }, []);
+
+  // ─── Foreground Service Integration (Android) ─────────────────────────────
+  // Start / update the native foreground service & notification so Android
+  // keeps the app alive in the background with media controls.
+
+  // When a new track starts playing, start (or update) the foreground service
+  useEffect(() => {
+    if (!currentTrack) return;
+    if (!isPlaying) return;
+
+    const title = currentTrack.title || "Unknown Track";
+    const artist = currentTrack.artist?.username || "MusicDiscover";
+    const thumbnail = currentTrack.thumbnail || currentTrack.thumbnailUrl || "";
+
+    startMusicService({ title, artist, thumbnail, isPlaying: true });
+  }, [currentTrack?._id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When play/pause state changes, update the notification icon
+  useEffect(() => {
+    if (!currentTrack) return;
+    updatePlaybackState(isPlaying);
+  }, [isPlaying]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When the track metadata changes (e.g. next/prev), update the notification
+  useEffect(() => {
+    if (!currentTrack) return;
+    if (!isPlaying) return;
+
+    const title = currentTrack.title || "Unknown Track";
+    const artist = currentTrack.artist?.username || "MusicDiscover";
+    const thumbnail = currentTrack.thumbnail || currentTrack.thumbnailUrl || "";
+
+    updateMusicMetadata({ title, artist, thumbnail });
+  }, [currentTrack?.title, currentTrack?.youtubeUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen for notification button actions from the native side
+  useEffect(() => {
+    const unsubscribe = onMusicServiceAction((action) => {
+      switch (action) {
+        case "play":
+          setIsPlaying(true);
+          break;
+        case "pause":
+          setIsPlaying(false);
+          break;
+        case "next":
+          playNext(true);
+          break;
+        case "previous":
+          playPrevious();
+          break;
+        case "stop":
+          setPlaylist([]);
+          setCurrentIndex(-1);
+          setIsPlaying(false);
+          setProgress(0);
+          setDuration(0);
+          stopMusicService();
+          break;
+      }
+    });
+    return unsubscribe;
+  }, [playNext, playPrevious]);
 
   return (
     <MusicContext.Provider

@@ -119,7 +119,7 @@ class AIService {
   async _completeGemini(messages, systemPrompt, { temperature, maxTokens, tools }) {
     const url =
       `https://generativelanguage.googleapis.com/v1beta/models/` +
-      `${config.gemini.model}:generateContent?key=${config.gemini.apiKey}`;
+      `${config.gemini.model}:generateContent`;
 
     const body = {
       contents: messages.map((m) => ({
@@ -141,8 +141,12 @@ class AIService {
 
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": config.gemini.apiKey,
+      },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) throw new Error(`Gemini error ${res.status}: ${await res.text().catch(() => "")}`);
 

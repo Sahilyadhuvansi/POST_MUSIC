@@ -22,21 +22,25 @@ const searchHTML = async (query, maxResults) => {
   const html = await res.text();
 
   const results = [];
-  const linkRe = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
-  const snippetRe = /<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
+  // Split HTML into result sections using result container boundaries
+  const blocks = html.split(/class="[^"]*result[^"]*"/i).slice(1);
 
-  let m;
-  const snippets = [];
-  while ((m = snippetRe.exec(html)) !== null) snippets.push(stripTags(m[1]));
+  for (const block of blocks) {
+    if (results.length >= maxResults) break;
 
-  let i = 0;
-  while ((m = linkRe.exec(html)) !== null && results.length < maxResults) {
-    // DDG wraps URLs in a redirect — extract the real target
-    const urlMatch = m[1].match(/uddg=([^&]+)/);
+    const linkMatch = block.match(/<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/i);
+    if (!linkMatch) continue;
+
+    const snippetMatch = block.match(/<a[^>]+class="result__snippet"[^>]*>([\s\S]*?)<\/a>/i);
+
+    const rawUrl = linkMatch[1];
+    const urlMatch = rawUrl.match(/uddg=([^&]+)/);
+    const url = urlMatch ? decodeURIComponent(urlMatch[1]) : rawUrl;
+
     results.push({
-      title: stripTags(m[2]),
-      snippet: snippets[i++] || "",
-      url: urlMatch ? decodeURIComponent(urlMatch[1]) : m[1],
+      title: stripTags(linkMatch[2]),
+      snippet: snippetMatch ? stripTags(snippetMatch[1]) : "",
+      url,
     });
   }
   return results;

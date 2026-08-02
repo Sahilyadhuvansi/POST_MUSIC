@@ -32,8 +32,13 @@ const getSession = async (req) => {
 
 const setSession = async (req, patch) => {
   const key = _key(req);
-  const current = await getSession(req);
-  const data = { ...current, ...patch };
+  const local = SESSIONS.get(key);
+  const currentData =
+    local && Date.now() - local.at <= config.agent.sessionTTL
+      ? local.data
+      : await getSession(req);
+
+  const data = { ...currentData, ...patch };
 
   SESSIONS.set(key, { data, at: Date.now() });
   await redisCache.setJSON(_redisKey(key), data, config.agent.sessionTTL);
@@ -55,13 +60,21 @@ const FILLER_RE =
   /\b(play|listen|to|save|like|favorite|add|delete|remove|unlike|discard|unfavorite|the|song|track|one|number|no|please)\b/g;
 
 const resolveOrdinal = (message, session) => {
+  if (!session?.lastResults?.length) return null;
   const lower = message.toLowerCase();
 
-  const word = lower.match(/\b(first|second|third|fourth|fifth|last)\b/);
-  if (word) {
-    return word[1] === "last"
-      ? Math.max(0, (session.lastResults?.length ?? 1) - 1)
-      : ORDINALS[word[1]];
+  const stripped = lower.replace(FILLER_RE, " ").replace(/[.!?,]/g, " ").trim();
+
+  const wordMatch = lower.match(/\b(first|second|third|fourth|fifth|last)\b/);
+  if (wordMatch) {
+    const nonOrdinalRemaining = stripped
+      .replace(/\b(first|second|third|fourth|fifth|last)\b/g, "")
+      .trim();
+    if (nonOrdinalRemaining.length === 0) {
+      return wordMatch[1] === "last"
+        ? Math.max(0, session.lastResults.length - 1)
+        : ORDINALS[wordMatch[1]];
+    }
   }
 
   // Bare numbers are only selections when clearly referential — "3rd",
@@ -72,13 +85,12 @@ const resolveOrdinal = (message, session) => {
   let token = explicit?.[1];
 
   if (!token) {
-    const stripped = lower.replace(FILLER_RE, " ").replace(/[.!?,]/g, " ").trim();
     if (/^\d+$/.test(stripped)) token = stripped;
   }
 
   if (!token) return null;
   const n = parseInt(token, 10);
-  return Number.isFinite(n) && n >= 1 ? n - 1 : null;
+  return Number.isFinite(n) && n >= 1 && n <= session.lastResults.length ? n - 1 : null;
 };
 
 // Evict stale local entries every 30 minutes (Redis keys expire on their own)

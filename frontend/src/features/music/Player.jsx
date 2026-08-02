@@ -344,151 +344,29 @@ const Player = () => {
   // (defined after the back-button section below so `minimizePlayer` exists)
 
   // ── Back button minimizes the expanded player ─────────────────────────────
-  // Push a history entry when expanding so hardware/browser back pops it and
-  // minimizes instead of leaving the page. When the player is minimized any
-  // other way (chevron, swipe-down, Escape), only pop the entry if the current
-  // history state still belongs to the active expansion instance.
-  const backHandledRef = useRef(false);
-  const activeHistoryEntryRef = useRef(null);
-  const expansionGenerationRef = useRef(0);
-  // history.back() is async — track in-flight cleanup pops so a rapid
-  // re-expand can't push a fresh entry that the stale pop then eats.
-  const pendingBacksRef = useRef(0);
-  const deferredPushRef = useRef(null);
-  const isExpandedRef = useRef(false);
-  useLayoutEffect(() => {
-    isExpandedRef.current = isExpanded;
-  }, [isExpanded]);
-
-  useEffect(() => {
-    // Mounted once, so it's registered before any expansion popstate handler
-    // (those are only added on expand) and runs first on each dispatch.
-    // Attributes popstates caused by our own cleanup back() and performs any
-    // push that was deferred behind them.
-    const drain = (event) => {
-      if (pendingBacksRef.current === 0) return;
-      pendingBacksRef.current--;
-      // Mark this dispatch as our own cleanup pop so the expansion popstate
-      // handler (which runs after us) ignores it. The flag lives on the
-      // event object, so it's scoped to exactly this dispatch.
-      if (event) event.__playerCleanupPop = true;
-      if (pendingBacksRef.current > 0) return;
-      if (deferredPushRef.current) {
-        const { entryId, generation } = deferredPushRef.current;
-        deferredPushRef.current = null;
-        if (activeHistoryEntryRef.current === entryId) {
-          window.history.pushState(
-            { modal: "player-expanded", entryId, generation },
-            "",
-          );
-        }
-      } else if (isExpandedRef.current && !activeHistoryEntryRef.current) {
-        // Minimize + re-expand landed in one React batch: isExpanded never
-        // toggled, so the expansion effect didn't re-run and no entry exists
-        // for the current expanded state. Recreate it now that the pop landed.
-        const generation = expansionGenerationRef.current + 1;
-        expansionGenerationRef.current = generation;
-        const entryId = `player-expanded:${generation}:${Date.now()}`;
-        activeHistoryEntryRef.current = entryId;
-        window.history.pushState(
-          { modal: "player-expanded", entryId, generation },
-          "",
-        );
-        backHandledRef.current = false;
-      }
-    };
-    window.addEventListener("popstate", drain);
-    return () => window.removeEventListener("popstate", drain);
-  }, []);
-
   const minimizePlayer = useCallback(() => {
-    if (backHandledRef.current) return;
-
-    const currentState = window.history.state;
-    const entryId = activeHistoryEntryRef.current;
-    const generation = expansionGenerationRef.current;
-
-    backHandledRef.current = true;
-    activeHistoryEntryRef.current = null;
-    deferredPushRef.current = null; // cancel any not-yet-pushed entry
-
     setIsExpanded(false);
     setShowQueueSheet(false);
     setShowSleepSheet(false);
-
-    if (
-      entryId &&
-      currentState?.modal === "player-expanded" &&
-      currentState?.generation === generation &&
-      currentState?.entryId === entryId
-    ) {
-      pendingBacksRef.current++;
+    if (window.history.state?.modal === "player-expanded") {
       window.history.back();
     }
   }, []);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (!isExpanded) return;
 
-    const generation = expansionGenerationRef.current + 1;
-    expansionGenerationRef.current = generation;
+    window.history.pushState({ modal: "player-expanded" }, "");
 
-    const entryId = `player-expanded:${generation}:${Date.now()}`;
-    activeHistoryEntryRef.current = entryId;
-    const currentState = window.history.state;
-    if (pendingBacksRef.current > 0) {
-      // A cleanup back() is still in flight — the current entry is about to
-      // be popped. Pushing now would let that pop eat the fresh entry, so
-      // defer the push until the pop lands (handled in the drain listener).
-      deferredPushRef.current = { entryId, generation };
-    } else {
-      const historyAction =
-        currentState?.modal === "player-expanded"
-          ? window.history.replaceState.bind(window.history)
-          : window.history.pushState.bind(window.history);
-      historyAction({ modal: "player-expanded", entryId, generation }, "");
-    }
-    backHandledRef.current = false;
-
-    const h = (event) => {
-      if (backHandledRef.current) return;
-      if (event?.__playerCleanupPop) return; // our own cleanup pop, not user Back
-
-      const state = event?.state ?? window.history.state;
-      const entryId = activeHistoryEntryRef.current;
-      const generation = expansionGenerationRef.current;
-      const isStaleModalEntry =
-        state?.modal === "player-expanded" &&
-        (state?.generation !== generation || state?.entryId !== entryId);
-      if (isStaleModalEntry) return;
-
-      backHandledRef.current = true;
-      activeHistoryEntryRef.current = null;
+    const onPopState = () => {
       setIsExpanded(false);
       setShowQueueSheet(false);
       setShowSleepSheet(false);
     };
-    window.addEventListener("popstate", h);
+
+    window.addEventListener("popstate", onPopState);
     return () => {
-      window.removeEventListener("popstate", h);
-      // If the player is deactivating without minimizePlayer() or the popstate
-      // handler having run (a direct setIsExpanded(false), or unmount while
-      // expanded), our history entry is still on the stack — pop it here so
-      // the next Back doesn't just re-minimize an already-minimized player.
-      if (!backHandledRef.current) {
-        const state = window.history.state;
-        const staleEntryId = activeHistoryEntryRef.current;
-        if (
-          staleEntryId &&
-          state?.modal === "player-expanded" &&
-          state?.entryId === staleEntryId
-        ) {
-          backHandledRef.current = true;
-          activeHistoryEntryRef.current = null;
-          pendingBacksRef.current++;
-          window.history.back();
-        }
-      }
+      window.removeEventListener("popstate", onPopState);
     };
   }, [isExpanded]);
 

@@ -49,10 +49,13 @@ musicSchema.index({ createdAt: -1 });
 // Best-effort: embed the title after save so semantic search covers new songs.
 // Lazy-required to avoid a circular dependency (embedding.service requires this model).
 musicSchema.post("save", function (doc) {
-  setImmediate(() => {
+  // Skip if title embedding is already populated
+  if (Array.isArray(doc.embedding) && doc.embedding.length > 0) return;
+
+  setImmediate(async () => {
     try {
-      require("../../services/embedding.service").ensureMusicEmbedding(doc);
-    } catch { /* non-critical */ }
+      await require("../../services/embedding.service").ensureMusicEmbedding(doc);
+    } catch { /* non-critical background task */ }
   });
 });
 

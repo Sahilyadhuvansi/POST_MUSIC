@@ -19,9 +19,15 @@ const getQuickStatus = () => {
 
 const getDetailedStatus = () => {
   const h = getAIHealth();
+  const activeModel = h.groq.enabled
+    ? h.groq.model
+    : h.gemini.enabled
+      ? h.gemini.model
+      : "none";
+
   return {
     ...h,
-    configuration: { enabled: h.groq.enabled || h.gemini.enabled, model: h.groq.model },
+    configuration: { enabled: h.groq.enabled || h.gemini.enabled, model: activeModel },
     performance: {
       uptimeSeconds: Math.floor(h.uptime),
       memoryMB: Math.floor(h.memory.heapUsed / 1024 / 1024),

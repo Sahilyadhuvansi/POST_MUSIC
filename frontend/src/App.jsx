@@ -18,6 +18,8 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
 import FloatingAIButton from "./components/FloatingAIButton";
 import { useAuth } from "./features/auth/AuthContext";
+import { useToast } from "./components/ui/Toast";
+import { useBackButton } from "./hooks/useBackButton";
 
 const PageLoader = () => (
   <div className="flex min-h-screen items-center justify-center">
@@ -52,6 +54,9 @@ const PageLoader = () => (
 
 const AppRouter = () => {
   const { loading } = useAuth();
+  const { addToast } = useToast();
+
+  useBackButton({ addToast });
 
   if (loading) return <PageLoader />;
 

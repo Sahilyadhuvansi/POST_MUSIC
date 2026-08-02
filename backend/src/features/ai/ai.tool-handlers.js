@@ -318,7 +318,9 @@ const TOOLS = {
   fetch_favorites: {
     description: "Retrieve the current user's saved songs",
     requiresAuth: true,
-    parameters: z.object({}),
+    parameters: z.object({
+      limit: z.number().optional().describe("Optional limit on number of songs to return"),
+    }),
     handler: handlers.fetch_favorites,
   },
   like_song: {
