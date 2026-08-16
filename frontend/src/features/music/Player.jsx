@@ -8,6 +8,7 @@ import {
   memo,
 } from "react";
 import { useMusic } from "./MusicContext";
+import { registerBackHandler } from "../../utils/backHandlerRegistry";
 import {
   ChevronDown,
   Expand,
@@ -341,34 +342,53 @@ const Player = () => {
   }, []);
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
-  // (defined after the back-button section below so `minimizePlayer` exists)
+  // (minimizePlayer must be defined before the back-button hooks below)
 
-  // ── Back button minimizes the expanded player ─────────────────────────────
   const minimizePlayer = useCallback(() => {
     setIsExpanded(false);
     setShowQueueSheet(false);
     setShowSleepSheet(false);
-    if (window.history.state?.modal === "player-expanded") {
-      window.history.back();
-    }
   }, []);
 
+  // ── Back button minimizes the expanded player ─────────────────────────────
+
+  // Sheets (queue / sleep) close first at higher priority than the player
   useEffect(() => {
     if (!isExpanded) return;
 
-    window.history.pushState({ modal: "player-expanded" }, "");
+    const unregisterQueue = registerBackHandler(async () => {
+      if (showQueueSheet) {
+        setShowQueueSheet(false);
+        return true;
+      }
+      return false;
+    }, 20);
 
-    const onPopState = () => {
-      setIsExpanded(false);
-      setShowQueueSheet(false);
-      setShowSleepSheet(false);
-    };
+    const unregisterSleep = registerBackHandler(async () => {
+      if (showSleepSheet) {
+        setShowSleepSheet(false);
+        return true;
+      }
+      return false;
+    }, 20);
 
-    window.addEventListener("popstate", onPopState);
     return () => {
-      window.removeEventListener("popstate", onPopState);
+      unregisterQueue();
+      unregisterSleep();
     };
-  }, [isExpanded]);
+  }, [isExpanded, showQueueSheet, showSleepSheet]);
+
+  // Player collapses next
+  useEffect(() => {
+    if (!isExpanded) return;
+
+    const unregister = registerBackHandler(async () => {
+      minimizePlayer();
+      return true;
+    }, 10);
+
+    return unregister;
+  }, [isExpanded, minimizePlayer]);
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -530,14 +550,14 @@ const Player = () => {
         {/* Mobile-only bottom sheets */}
         <BottomSheet
           isOpen={showQueueSheet}
-          onClose={() => setShowQueueSheet(false)}
+          onClose={useCallback(() => setShowQueueSheet(false), [])}
           title={`Queue · ${playlist.length} tracks`}
         >
           <QueueList playlist={playlist} currentTrack={currentTrack} />
         </BottomSheet>
         <BottomSheet
           isOpen={showSleepSheet}
-          onClose={() => setShowSleepSheet(false)}
+          onClose={useCallback(() => setShowSleepSheet(false), [])}
           title="Sleep timer"
         >
           <SleepOptions

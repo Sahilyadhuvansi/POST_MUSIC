@@ -23,32 +23,44 @@ import java.net.URL;
  * Foreground service that keeps music playback alive when the app is
  * backgrounded or the screen is off.  Displays a persistent media
  * notification with Play/Pause, Next, Previous and Stop controls.
+ *
+ * Uses a static singleton so {@link MusicServicePlugin} can update
+ * metadata / playback state without restarting the service.
  */
 public class MusicPlaybackService extends Service {
 
     public static final String CHANNEL_ID = "music_playback_channel";
     public static final int NOTIFICATION_ID = 1001;
 
-    // Intent actions sent from MusicNotificationReceiver
+    // ─── Actions ─────────────────────────────────────────────────────────────────
     public static final String ACTION_PLAY    = "com.musicdiscover.app.ACTION_PLAY";
     public static final String ACTION_PAUSE   = "com.musicdiscover.app.ACTION_PAUSE";
     public static final String ACTION_NEXT    = "com.musicdiscover.app.ACTION_NEXT";
     public static final String ACTION_PREV    = "com.musicdiscover.app.ACTION_PREV";
     public static final String ACTION_STOP    = "com.musicdiscover.app.ACTION_STOP";
 
-    // Extras sent when starting / updating the service
-    public static final String EXTRA_TITLE     = "title";
-    public static final String EXTRA_ARTIST    = "artist";
-    public static final String EXTRA_THUMBNAIL = "thumbnail";
+    // ─── Extras ─────────────────────────────────────────────────────────────────
+    public static final String EXTRA_TITLE      = "title";
+    public static final String EXTRA_ARTIST     = "artist";
+    public static final String EXTRA_THUMBNAIL  = "thumbnail";
     public static final String EXTRA_IS_PLAYING = "isPlaying";
 
-    private PowerManager.WakeLock wakeLock;
+    // ─── Singleton ───────────────────────────────────────────────────────────────
+    private static MusicPlaybackService instance;
 
+    public static MusicPlaybackService getInstance() {
+        return instance;
+    }
+
+    // ─── Mutable state (updated directly by the plugin via getInstance()) ────────
     private String currentTitle  = "Music Discover";
     private String currentArtist = "";
     private String currentThumbnailUrl = null;
     private boolean currentIsPlaying = true;
     private Bitmap currentArtwork = null;
+
+    // ─── WakeLock ───────────────────────────────────────────────────────────────
+    private PowerManager.WakeLock wakeLock;
 
     // ────────────────────────────────────────────────────────────────────────────
     // Lifecycle
@@ -57,6 +69,7 @@ public class MusicPlaybackService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        instance = this;
         createNotificationChannel();
         acquireWakeLock();
     }
@@ -66,14 +79,14 @@ public class MusicPlaybackService extends Service {
         if (intent != null) {
             String action = intent.getAction();
 
-            // Handle notification button actions forwarded from the receiver
+            // Handle notification button actions (forwarded by the receiver)
             if (action != null) {
                 switch (action) {
                     case ACTION_PLAY:
                     case ACTION_PAUSE:
                     case ACTION_NEXT:
                     case ACTION_PREV:
-                        // These are forwarded to the WebView by the plugin
+                        // These are forwarded to the WebView by the receiver
                         break;
                     case ACTION_STOP:
                         stopSelf();
@@ -81,32 +94,18 @@ public class MusicPlaybackService extends Service {
                 }
             }
 
-            // Update metadata from extras
-            if (intent.hasExtra(EXTRA_TITLE)) {
-                currentTitle = intent.getStringExtra(EXTRA_TITLE);
-            }
-            if (intent.hasExtra(EXTRA_ARTIST)) {
-                currentArtist = intent.getStringExtra(EXTRA_ARTIST);
-            }
-            if (intent.hasExtra(EXTRA_IS_PLAYING)) {
-                currentIsPlaying = intent.getBooleanExtra(EXTRA_IS_PLAYING, true);
-            }
-            if (intent.hasExtra(EXTRA_THUMBNAIL)) {
-                String newUrl = intent.getStringExtra(EXTRA_THUMBNAIL);
-                if (newUrl != null && !newUrl.equals(currentThumbnailUrl)) {
-                    currentThumbnailUrl = newUrl;
-                    loadArtworkAsync(newUrl);
-                }
-            }
+            // Update mutable state from intent extras (used on service restart)
+            applyExtras(intent);
         }
 
-        // Build and show notification
+        // Always show / refresh the notification after processing
         startForeground(NOTIFICATION_ID, buildNotification());
         return START_STICKY;
     }
 
     @Override
     public void onDestroy() {
+        instance = null;
         releaseWakeLock();
         stopForeground(true);
         super.onDestroy();
@@ -118,6 +117,33 @@ public class MusicPlaybackService extends Service {
     }
 
     // ────────────────────────────────────────────────────────────────────────────
+    // Public setters — called directly by MusicServicePlugin (no service restart)
+    // ────────────────────────────────────────────────────────────────────────────
+
+    public void setTitle(String title) {
+        this.currentTitle = title != null ? title : "Music Discover";
+        refreshNotification();
+    }
+
+    public void setArtist(String artist) {
+        this.currentArtist = artist != null ? artist : "";
+        refreshNotification();
+    }
+
+    public void setIsPlaying(boolean playing) {
+        this.currentIsPlaying = playing;
+        refreshNotification();
+    }
+
+    public void setThumbnailUrl(String url) {
+        if (url == null) return;
+        if (!url.equals(currentThumbnailUrl)) {
+            currentThumbnailUrl = url;
+            loadArtworkAsync(url);
+        }
+    }
+
+    // ────────────────────────────────────────────────────────────────────────────
     // Notification
     // ────────────────────────────────────────────────────────────────────────────
 
@@ -126,7 +152,7 @@ public class MusicPlaybackService extends Service {
             NotificationChannel channel = new NotificationChannel(
                     CHANNEL_ID,
                     "Music Playback",
-                    NotificationManager.IMPORTANCE_LOW   // No sound for media notification
+                    NotificationManager.IMPORTANCE_LOW
             );
             channel.setDescription("Controls for music playback");
             channel.setShowBadge(false);
@@ -162,7 +188,7 @@ public class MusicPlaybackService extends Service {
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
                 .setStyle(new androidx.media.app.NotificationCompat.MediaStyle()
-                        .setShowActionsInCompactView(0, 1, 2))  // prev, play/pause, next in compact
+                        .setShowActionsInCompactView(0, 1, 2))
                 .addAction(android.R.drawable.ic_media_previous, "Previous", prevPending);
 
         // Play or Pause button depending on current state
@@ -182,6 +208,14 @@ public class MusicPlaybackService extends Service {
         return builder.build();
     }
 
+    /** Re-publish the notification with current state. */
+    public void refreshNotification() {
+        NotificationManager mgr = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (mgr != null) {
+            mgr.notify(NOTIFICATION_ID, buildNotification());
+        }
+    }
+
     private PendingIntent makePending(String action, int requestCode) {
         Intent intent = new Intent(this, MusicNotificationReceiver.class);
         intent.setAction(action);
@@ -189,16 +223,6 @@ public class MusicPlaybackService extends Service {
                 this, requestCode, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
-    }
-
-    /**
-     * Public helper so the plugin can refresh the notification after updating state.
-     */
-    public void refreshNotification() {
-        NotificationManager mgr = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        if (mgr != null) {
-            mgr.notify(NOTIFICATION_ID, buildNotification());
-        }
     }
 
     // ────────────────────────────────────────────────────────────────────────────
@@ -220,7 +244,6 @@ public class MusicPlaybackService extends Service {
                 connection.disconnect();
 
                 if (bitmap != null) {
-                    // Scale down for notification
                     currentArtwork = Bitmap.createScaledBitmap(bitmap, 256, 256, true);
                     if (bitmap != currentArtwork) bitmap.recycle();
                     refreshNotification();
@@ -257,15 +280,27 @@ public class MusicPlaybackService extends Service {
         }
     }
 
-    // ── Public setters (called by the plugin) ────────────────────────────────
+    // ────────────────────────────────────────────────────────────────────────────
+    // Helpers
+    // ────────────────────────────────────────────────────────────────────────────
 
-    public void setTitle(String title)   { this.currentTitle = title; }
-    public void setArtist(String artist) { this.currentArtist = artist; }
-    public void setIsPlaying(boolean playing) { this.currentIsPlaying = playing; }
-    public void setThumbnailUrl(String url) {
-        if (url != null && !url.equals(currentThumbnailUrl)) {
-            currentThumbnailUrl = url;
-            loadArtworkAsync(url);
+    /** Apply intent extras to the current mutable state. */
+    private void applyExtras(Intent intent) {
+        if (intent.hasExtra(EXTRA_TITLE)) {
+            currentTitle = intent.getStringExtra(EXTRA_TITLE);
+        }
+        if (intent.hasExtra(EXTRA_ARTIST)) {
+            currentArtist = intent.getStringExtra(EXTRA_ARTIST);
+        }
+        if (intent.hasExtra(EXTRA_IS_PLAYING)) {
+            currentIsPlaying = intent.getBooleanExtra(EXTRA_IS_PLAYING, true);
+        }
+        if (intent.hasExtra(EXTRA_THUMBNAIL)) {
+            String newUrl = intent.getStringExtra(EXTRA_THUMBNAIL);
+            if (newUrl != null && !newUrl.equals(currentThumbnailUrl)) {
+                currentThumbnailUrl = newUrl;
+                loadArtworkAsync(newUrl);
+            }
         }
     }
 }

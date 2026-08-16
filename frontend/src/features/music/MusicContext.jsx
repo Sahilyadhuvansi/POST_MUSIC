@@ -58,6 +58,7 @@ export const MusicProvider = ({ children }) => {
   // Mirrors isPlaying so async callbacks (player events, media session)
   // can read the latest intent without re-subscribing.
   const isPlayingRef = useRef(false);
+  const durationRef = useRef(0);
   // Counts forced background resumes so we stop fighting OS-initiated pauses
   // (phone calls, audio-focus loss) after a couple of attempts.
   const resumeAttemptsRef = useRef({ count: 0, lastAt: 0 });
@@ -70,6 +71,7 @@ export const MusicProvider = ({ children }) => {
 
   useEffect(() => {
     playerRef.current = null;
+    durationRef.current = 0;
   }, [videoId]);
 
   const setPlaybackRules = useCallback((patch = {}) => {
@@ -244,14 +246,15 @@ export const MusicProvider = ({ children }) => {
       if (!playerRef.current) return;
       try {
         const currentTime = await playerRef.current.getCurrentTime();
-        if (duration > 0) {
-          setProgress((currentTime / duration) * 100);
+        const d = durationRef.current;
+        if (d > 0) {
+          setProgress((currentTime / d) * 100);
         }
       } catch {
         // Ignore errors
       }
     }, 1000);
-  }, [duration]);
+  }, []);
 
   const stopProgressPolling = useCallback(() => {
     if (progressIntervalRef.current) {
@@ -482,6 +485,7 @@ export const MusicProvider = ({ children }) => {
       try {
         const d = await event.target.getDuration();
         setDuration(d);
+        durationRef.current = d;
       } catch {
         // Could not get duration
       }
@@ -496,7 +500,10 @@ export const MusicProvider = ({ children }) => {
         startProgressPolling();
         try {
           const d = await event.target.getDuration();
-          if (d > 0 && d !== duration) setDuration(d);
+          if (d > 0) {
+            setDuration(d);
+            durationRef.current = d;
+          }
         } catch {
           // Duration fetch can fail
         }
@@ -543,15 +550,16 @@ export const MusicProvider = ({ children }) => {
     navigator.mediaSession.metadata = new window.MediaMetadata({
       title: currentTrack.title || "Unknown Track",
       artist: currentTrack.artist?.username || "MusicDiscover",
-      artwork: (currentTrack.thumbnail || currentTrack.thumbnailUrl)
-        ? [
-            {
-              src: currentTrack.thumbnail || currentTrack.thumbnailUrl,
-              sizes: "320x180",
-              type: "image/jpeg",
-            },
-          ]
-        : [],
+      artwork:
+        currentTrack.thumbnail || currentTrack.thumbnailUrl
+          ? [
+              {
+                src: currentTrack.thumbnail || currentTrack.thumbnailUrl,
+                sizes: "320x180",
+                type: "image/jpeg",
+              },
+            ]
+          : [],
     });
     navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
   }, [currentTrack, isPlaying]);
@@ -567,7 +575,8 @@ export const MusicProvider = ({ children }) => {
       [
         "seekto",
         (details) => {
-          if (Number.isFinite(details.seekTime)) setCurrentTime(details.seekTime);
+          if (Number.isFinite(details.seekTime))
+            setCurrentTime(details.seekTime);
         },
       ],
     ];
@@ -603,7 +612,8 @@ export const MusicProvider = ({ children }) => {
         playerRef.current
       ) {
         const attempts = resumeAttemptsRef.current;
-        if (Date.now() - attempts.lastAt <= 15000 && attempts.count >= 2) return;
+        if (Date.now() - attempts.lastAt <= 15000 && attempts.count >= 2)
+          return;
         try {
           playerRef.current.playVideo?.();
         } catch {

@@ -1,102 +1,119 @@
 import { useEffect, useRef, useCallback } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import {
+  dispatchBack,
+  registerBackHandler,
+} from "../utils/backHandlerRegistry";
 
-/**
- * Helper to safely obtain the Capacitor App plugin instance.
- * Checks window.Capacitor.Plugins.App first (available when running in native webview),
- * and falls back to dynamic import of @capacitor/app if available.
- */
-const getCapacitorApp = async () => {
-  if (typeof window !== "undefined" && window.Capacitor?.Plugins?.App) {
-    return window.Capacitor.Plugins.App;
-  }
-  try {
-    const { App } = await import("@capacitor/app");
-    return App;
-  } catch {
-    return null;
-  }
-};
-
-/**
- * useBackButton
- *
- * Implements professional music-app back button behaviour:
- *
- * 1. If on a nested page → navigate back normally.
- * 2. If on a root page ("/" or "/music"):
- *    a. First press → show a toast "Press back again to exit."
- *    b. Second press within 2 s → minimise the app (music keeps playing).
- *
- * Uses the Capacitor @capacitor/app plugin for `backButton` events and
- * `App.minimizeApp()`.  Falls back to a no-op on web.
- *
- * @param {{ addToast?: (msg: string, type?: string) => void }} opts
- */
 export function useBackButton({ addToast } = {}) {
-  const location = useLocation();
   const navigate = useNavigate();
-  const lastBackPressRef = useRef(0);
+  const lastPressRef = useRef(0);
 
-  const handleBackButton = useCallback(
-    async (ev) => {
-      const isRoot =
-        location.pathname === "/" || location.pathname === "/music";
+  // Refs so we can always clean up synchronously without worrying about
+  // the async .then() callback completing first.
+  const removeRouterRef = useRef(() => {});
+  const removeNativeRef = useRef(() => {});
+  const appPluginRef = useRef(null);
 
-      if (!isRoot) {
-        // Nested page → navigate back
+  // Load the Capacitor App plugin once (synchronously if already loaded).
+  const loadAppPlugin = useCallback(async () => {
+    if (appPluginRef.current) return appPluginRef.current;
+    if (typeof window !== "undefined" && window.Capacitor?.Plugins?.App) {
+      appPluginRef.current = window.Capacitor.Plugins.App;
+      return appPluginRef.current;
+    }
+    try {
+      const { App } = await import("@capacitor/app");
+      appPluginRef.current = App;
+      return App;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  // Register router fallback — lowest priority in the stack.
+  // This returns immediately (the handler itself is lazy), so we can
+  // capture the unregister in a ref right away.
+  const unregisterRouter = useCallback(
+    registerBackHandler(async () => {
+      const AppPlugin = await loadAppPlugin();
+      const nativeCanGoBack =
+        AppPlugin?.canGoBack != null
+          ? (await AppPlugin.canGoBack()).canGoBack
+          : false;
+
+      const routerCanGoBack = window.history.state?.idx > 0;
+
+      if (nativeCanGoBack || routerCanGoBack) {
         navigate(-1);
-        return;
+        return true;
       }
-
-      // Root page → double-back-to-minimise
-      const now = Date.now();
-      if (now - lastBackPressRef.current < 2000) {
-        // Second press within 2 s → minimise
-        try {
-          const AppPlugin = await getCapacitorApp();
-          if (AppPlugin && typeof AppPlugin.minimizeApp === "function") {
-            await AppPlugin.minimizeApp();
-          }
-        } catch {
-          // If minimiseApp isn't available, do nothing
-        }
-      } else {
-        // First press → show toast
-        lastBackPressRef.current = now;
-        if (addToast) {
-          addToast("Press back again to exit.", "info");
-        }
-      }
-    },
-    [location.pathname, navigate, addToast],
+      return false;
+    }, 0),
+    [navigate, loadAppPlugin],
   );
 
+  // Set up the native Capacitor back-button listener.  The App plugin is
+  // loaded lazily, but the cleanup functions are captured in refs
+  // *immediately* so that the useEffect cleanup below can always call
+  // them — even if the async setup hasn't completed yet.
   useEffect(() => {
-    let removeListener = null;
+    removeRouterRef.current = unregisterRouter;
+    let isMounted = true;
 
-    const setup = async () => {
-      try {
-        const AppPlugin = await getCapacitorApp();
-        if (AppPlugin && typeof AppPlugin.addListener === "function") {
-          const handle = await AppPlugin.addListener("backButton", ({ canGoBack }) => {
-            handleBackButton({ canGoBack });
-          });
-          removeListener = () => {
-            if (handle && typeof handle.remove === "function") {
-              handle.remove();
-            }
-          };
+    loadAppPlugin().then((AppPlugin) => {
+      if (!isMounted) return;
+      if (!AppPlugin || typeof AppPlugin.addListener !== "function") return;
+
+      const listenerResult = AppPlugin.addListener("backButton", async () => {
+        const consumed = await dispatchBack();
+        if (consumed) return;
+
+        const now = Date.now();
+        if (now - lastPressRef.current < 2000) {
+          try {
+            const plugin = await loadAppPlugin();
+            if (plugin?.minimizeApp) await plugin.minimizeApp();
+          } catch {
+            // minimizeApp unavailable — no-op
+          }
+        } else {
+          lastPressRef.current = now;
+          if (addToast) addToast("Press back again to exit.", "info");
         }
-      } catch {
-        // Not running in Capacitor — no-op on web
-      }
-    };
+      });
 
-    setup();
+      const finish = (handle) => {
+        if (!handle || typeof handle.remove !== "function") return;
+        if (!isMounted) {
+          try {
+            handle.remove();
+          } catch {
+            /* ignore */
+          }
+          return;
+        }
+        removeNativeRef.current = () => {
+          try {
+            handle.remove();
+          } catch {
+            /* already gone */
+          }
+        };
+      };
+
+      if (listenerResult instanceof Promise) {
+        listenerResult.then((handle) => finish(handle)).catch(() => {});
+      } else {
+        finish(listenerResult);
+      }
+    });
 
     return () => {
-      if (removeListener) removeListener();
+      isMounted = false;
+      removeRouterRef.current();
+      removeNativeRef.current();
+      removeNativeRef.current = () => {};
     };
-  }, [handleBackButton]);
+  }, [unregisterRouter, loadAppPlugin, addToast]);
 }

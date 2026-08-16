@@ -38,13 +38,19 @@ const getPlugin = () => {
  *
  * @param {{ title: string, artist: string, thumbnail?: string, isPlaying?: boolean }} opts
  */
-export async function startMusicService({ title, artist, thumbnail, isPlaying = true }) {
+export async function startMusicService({
+  title,
+  artist,
+  thumbnail,
+  isPlaying = true,
+}) {
   const plugin = getPlugin();
   if (!plugin) return;
   try {
     await plugin.startService({ title, artist, thumbnail, isPlaying });
   } catch (e) {
-    if (import.meta.env.DEV) console.warn("[MusicService] startService failed:", e);
+    if (import.meta.env.DEV)
+      console.warn("[MusicService] startService failed:", e);
   }
 }
 
@@ -60,7 +66,8 @@ export async function updateMusicMetadata({ title, artist, thumbnail }) {
   try {
     await plugin.updateMetadata({ title, artist, thumbnail });
   } catch (e) {
-    if (import.meta.env.DEV) console.warn("[MusicService] updateMetadata failed:", e);
+    if (import.meta.env.DEV)
+      console.warn("[MusicService] updateMetadata failed:", e);
   }
 }
 
@@ -75,7 +82,8 @@ export async function updatePlaybackState(isPlaying) {
   try {
     await plugin.updatePlaybackState({ isPlaying });
   } catch (e) {
-    if (import.meta.env.DEV) console.warn("[MusicService] updatePlaybackState failed:", e);
+    if (import.meta.env.DEV)
+      console.warn("[MusicService] updatePlaybackState failed:", e);
   }
 }
 
@@ -89,7 +97,8 @@ export async function stopMusicService() {
   try {
     await plugin.stopService();
   } catch (e) {
-    if (import.meta.env.DEV) console.warn("[MusicService] stopService failed:", e);
+    if (import.meta.env.DEV)
+      console.warn("[MusicService] stopService failed:", e);
   }
 }
 
@@ -108,18 +117,42 @@ export function onMusicServiceAction(callback) {
   if (!plugin || !plugin.addListener) return () => {};
 
   let handle = null;
+  let cancelled = false;
+
   try {
-    handle = plugin.addListener("musicServiceAction", (data) => {
+    const res = plugin.addListener("musicServiceAction", (data) => {
       if (data?.action) callback(data.action);
     });
+
+    if (res instanceof Promise) {
+      res
+        .then((h) => {
+          handle = h;
+          if (cancelled && handle && typeof handle.remove === "function") {
+            try {
+              handle.remove();
+            } catch {
+              /* ignore */
+            }
+          }
+        })
+        .catch(() => {});
+    } else {
+      handle = res;
+    }
   } catch {
     return () => {};
   }
 
   // Return an unsubscribe function
   return () => {
+    cancelled = true;
     if (handle && typeof handle.remove === "function") {
-      handle.remove();
+      try {
+        handle.remove();
+      } catch {
+        /* ignore */
+      }
     }
   };
 }
